@@ -1242,6 +1242,141 @@ const createPersonalOrder = asyncHandler(async (req, res) => {
 });
 
 /**
+ * Create Saboy order (take-away with number)
+ * POST /api/orders/saboy
+ */
+const createSaboyOrder = asyncHandler(async (req, res) => {
+  const { restaurantId, id: userId, fullName } = req.user;
+  const { items, saboyNumber, comment } = req.body;
+
+  if (!items || items.length === 0) {
+    throw new AppError('Kamida bitta taom kerak', 400, 'VALIDATION_ERROR');
+  }
+
+  // Validate saboyNumber
+  let finalSaboyNumber;
+  if (saboyNumber !== undefined && saboyNumber !== null && saboyNumber !== '') {
+    const parsedNumber = parseInt(saboyNumber);
+    if (isNaN(parsedNumber) || parsedNumber < 1) {
+      throw new AppError('Saboy raqami 1 dan katta butun son bo\'lishi kerak', 400, 'VALIDATION_ERROR');
+    }
+    finalSaboyNumber = parsedNumber;
+  } else {
+    // Default to next order number
+    const orderNumber = await Order.getNextOrderNumber(restaurantId);
+    finalSaboyNumber = orderNumber;
+  }
+
+  // Check if saboyNumber already exists today
+  const startOfDay = new Date();
+  startOfDay.setHours(0, 0, 0, 0);
+
+  const existingSaboy = await Order.findOne({
+    restaurantId,
+    orderType: 'saboy',
+    saboyNumber: finalSaboyNumber,
+    createdAt: { $gte: startOfDay },
+    isDeleted: { $ne: true }
+  });
+
+  if (existingSaboy) {
+    throw new AppError(`Saboy #${finalSaboyNumber} bugun allaqachon mavjud`, 400, 'DUPLICATE_SABOY');
+  }
+
+  // Prepare items
+  const orderItems = await Promise.all(items.map(async (item) => {
+    const food = await Food.findById(item.foodId);
+    return {
+      foodId: item.foodId,
+      foodName: food ? food.foodName || food.name : item.foodName,
+      categoryId: food ? food.categoryId : item.categoryId,
+      quantity: item.quantity || 1,
+      price: food ? food.price : item.price,
+      addedBy: userId,
+      addedByName: fullName
+    };
+  }));
+
+  const orderNumber = await Order.getNextOrderNumber(restaurantId);
+
+  const order = new Order({
+    restaurantId,
+    orderNumber,
+    orderType: 'saboy',
+    saboyNumber: finalSaboyNumber,
+    items: orderItems,
+    waiterId: userId,
+    waiterName: fullName,
+    waiterApproved: true,
+    approvedAt: new Date(),
+    source: 'cashier',
+    comment,
+    // Saboy - xizmat haqi yo'q (olib ketish)
+    serviceChargePercent: 0
+  });
+
+  await order.save();
+
+  emitOrderEvent(restaurantId.toString(), ORDER_EVENTS.CREATED, { order, isSaboy: true });
+
+  // Cook uchun kitchen_orders_updated yuborish
+  try {
+    const rawKitchenOrders = await Order.find({
+      restaurantId,
+      status: { $in: ['pending', 'approved', 'preparing', 'ready'] },
+      'items.status': { $in: ['pending', 'preparing', 'ready'] }
+    }).populate('items.foodId', 'name price categoryId image requireDoubleConfirmation')
+      .populate('tableId', 'title tableNumber number')
+      .populate('waiterId', 'firstName lastName')
+      .sort({ createdAt: -1 });
+
+    const kitchenOrders = rawKitchenOrders.map(o => {
+      const items = o.items
+        .filter(i => ['pending', 'preparing', 'ready'].includes(i.status))
+        .map(i => ({
+          ...i.toObject(),
+          kitchenStatus: i.status,
+          name: i.foodId?.name || i.foodName,
+          requireDoubleConfirmation: i.foodId?.requireDoubleConfirmation || false
+        }));
+      return {
+        _id: o._id,
+        orderId: o._id,
+        orderNumber: o.orderNumber,
+        orderType: o.orderType,
+        saboyNumber: o.saboyNumber,
+        tableId: o.tableId,
+        tableName: o.orderType === 'saboy' ? `Saboy #${o.saboyNumber}` : (o.tableId?.title || o.tableName),
+        tableNumber: o.tableId?.number || o.tableNumber,
+        waiterId: o.waiterId,
+        waiterName: o.waiterId ? `${o.waiterId.firstName || ''} ${o.waiterId.lastName || ''}`.trim() : '',
+        items,
+        status: o.status,
+        createdAt: o.createdAt,
+        restaurantId: o.restaurantId
+      };
+    }).filter(o => o.items.length > 0);
+
+    socketService.emitToRole(restaurantId.toString(), 'cook', 'new_kitchen_order', {
+      order: order,
+      allOrders: kitchenOrders,
+      isNewOrder: true,
+      isSaboy: true,
+      newItems: orderItems.map(i => ({ ...i, kitchenStatus: 'pending' }))
+    });
+    await socketService.emitFilteredKitchenOrders(restaurantId.toString(), kitchenOrders, 'kitchen_orders_updated');
+  } catch (err) {
+    console.error('Error sending kitchen orders:', err);
+  }
+
+  res.status(201).json({
+    success: true,
+    message: `Saboy buyurtma yaratildi: #${order.saboyNumber}`,
+    data: order
+  });
+});
+
+/**
  * TZ 3.3: Get archived orders for a specific date
  * GET /api/orders/archive/:date
  */
@@ -1404,6 +1539,7 @@ module.exports = {
   cancelItem,
   transferOrder,
   createPersonalOrder,
+  createSaboyOrder,
   getArchivedOrders,
   getWaiterDailyIncome,
   getMyDailyIncome
