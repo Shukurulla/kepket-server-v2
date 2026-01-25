@@ -35,6 +35,11 @@ const foodSchema = new mongoose.Schema({
     type: Boolean,
     default: true
   },
+  // Ikki marta tasdiqlash kerakmi (oshpaz uchun)
+  requireDoubleConfirmation: {
+    type: Boolean,
+    default: false
+  },
   preparationTime: {
     type: Number, // minutes
     min: 0
