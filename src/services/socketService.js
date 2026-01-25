@@ -55,6 +55,14 @@ class SocketService {
       await this.handleCookConnect(socket, data);
     });
 
+    socket.on('admin_connect', async (data) => {
+      await this.handleAdminConnect(socket, data);
+    });
+
+    socket.on('cashier_connect', async (data) => {
+      await this.handleCashierConnect(socket, data);
+    });
+
     socket.on('join_restaurant', async (data) => {
       await this.handleJoinRestaurant(socket, data);
     });
@@ -202,6 +210,57 @@ class SocketService {
 
     if (config.ENABLE_SOCKET_LOGGING) {
       console.log(`Cook connected: ${cookId} to restaurant ${restaurantId}`);
+    }
+  }
+
+  /**
+   * Handle admin_connect
+   */
+  async handleAdminConnect(socket, data) {
+    const { restaurantId, role } = data;
+
+    socket.restaurantId = restaurantId;
+    socket.role = 'admin';
+
+    socket.join(`restaurant:${restaurantId}`);
+    socket.join(`admin:${restaurantId}`);
+
+    socket.emit('connection_established', {
+      restaurantId,
+      role: 'admin',
+      message: 'Admin connected successfully'
+    });
+
+    if (config.ENABLE_SOCKET_LOGGING) {
+      console.log(`Admin connected to restaurant ${restaurantId}`);
+    }
+  }
+
+  /**
+   * Handle cashier_connect
+   */
+  async handleCashierConnect(socket, data) {
+    const { cashierId, restaurantId } = data;
+
+    socket.userId = cashierId;
+    socket.restaurantId = restaurantId;
+    socket.role = 'cashier';
+
+    socket.join(`restaurant:${restaurantId}`);
+    socket.join(`cashier:${restaurantId}`);
+    if (cashierId) {
+      socket.join(`user:${cashierId}`);
+      this.connectedUsers.set(cashierId, socket.id);
+    }
+
+    socket.emit('connection_established', {
+      cashierId,
+      restaurantId,
+      message: 'Cashier connected successfully'
+    });
+
+    if (config.ENABLE_SOCKET_LOGGING) {
+      console.log(`Cashier connected: ${cashierId} to restaurant ${restaurantId}`);
     }
   }
 

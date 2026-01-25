@@ -43,20 +43,31 @@ const emitOrderEvent = (restaurantId, eventType, data) => {
   switch (eventType) {
     case ORDER_EVENTS.CREATED:
       socketService.emitToRole(restaurantId, 'cashier', 'new_order', data);
+      socketService.emitToRole(restaurantId, 'waiter', 'new_order', data);
       break;
 
     case ORDER_EVENTS.UPDATED:
+      // Emit to all roles for real-time sync
+      socketService.emitToRole(restaurantId, 'cashier', 'order_updated', data);
+      socketService.emitToRole(restaurantId, 'waiter', 'order_updated', data);
+      socketService.emitToRole(restaurantId, 'admin', 'order_updated', data);
       if (data.action === 'item_deleted' || data.action === 'item_quantity_changed') {
         socketService.emitToRole(restaurantId, 'cashier', 'order_item_deleted', data);
+        socketService.emitToRole(restaurantId, 'waiter', 'order_item_deleted', data);
       }
       break;
 
     case ORDER_EVENTS.DELETED:
+      // Emit to all roles
       socketService.emitToRole(restaurantId, 'cashier', 'order_deleted', data);
+      socketService.emitToRole(restaurantId, 'waiter', 'order_deleted', data);
+      socketService.emitToRole(restaurantId, 'admin', 'order_deleted', data);
       break;
 
     case ORDER_EVENTS.PAID:
       socketService.emitToRole(restaurantId, 'waiter', 'order_paid', data);
+      socketService.emitToRole(restaurantId, 'cashier', 'order_paid', data);
+      socketService.emitToRole(restaurantId, 'admin', 'order_paid', data);
       break;
 
     case ORDER_EVENTS.ITEM_READY:

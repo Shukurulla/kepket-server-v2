@@ -173,11 +173,11 @@ exports.updateItemStatus = async (req, res, next) => {
     await order.populate('waiterId', 'firstName lastName');
     await order.populate('items.foodId', 'name image categoryId');
 
-    // Get all kitchen orders for cook-web (including ready items)
+    // Get all kitchen orders for cook-web (including ready and served items)
     const rawKitchenOrders = await Order.find({
       restaurantId,
-      status: { $in: ['pending', 'approved', 'preparing', 'ready'] },
-      'items.status': { $in: ['pending', 'preparing', 'ready'] }
+      status: { $in: ['pending', 'approved', 'preparing', 'ready', 'served'] },
+      'items.status': { $in: ['pending', 'preparing', 'ready', 'served'] }
     }).populate('items.foodId', 'name price categoryId image')
       .populate('tableId', 'title tableNumber number')
       .populate('waiterId', 'firstName lastName')
@@ -186,7 +186,7 @@ exports.updateItemStatus = async (req, res, next) => {
     // Transform for cook-web format
     const kitchenOrders = rawKitchenOrders.map(o => {
       const items = o.items
-        .filter(i => ['pending', 'preparing', 'ready'].includes(i.status))
+        .filter(i => ['pending', 'preparing', 'ready', 'served'].includes(i.status))
         .map(i => ({
           ...i.toObject(),
           kitchenStatus: i.status,
@@ -221,8 +221,9 @@ exports.updateItemStatus = async (req, res, next) => {
     // cook-web uchun kitchen_orders_updated yuborish
     socketService.emitToRole(restaurantId, 'cook', 'kitchen_orders_updated', kitchenOrders);
 
-    // If item is ready, notify waiter
-    if (item.status === 'ready' && order.waiterId) {
+    // If item is ready OR partial ready, notify waiter
+    const itemReadyQty = item.readyQuantity || 0;
+    if ((item.status === 'ready' || itemReadyQty > 0) && order.waiterId) {
       const foodName = item.foodId?.name || item.foodName || 'Taom';
       const tableNumber = order.tableId?.number || order.tableId?.tableNumber || order.tableNumber;
       const tableName = order.tableId?.title || order.tableName || `Stol ${tableNumber}`;
