@@ -429,3 +429,47 @@ exports.getAttendanceToday = async (req, res, next) => {
     next(error);
   }
 };
+
+// Get attendance history (Flutter waiter app uchun)
+// GET /api/staff/attendance/history
+exports.getAttendanceHistory = async (req, res, next) => {
+  try {
+    const { id: staffId } = req.user;
+    const { startDate, endDate } = req.query;
+
+    const staff = await Staff.findById(staffId).select('isWorking lastSeenAt firstName lastName');
+    if (!staff) {
+      return res.status(404).json({
+        success: false,
+        message: 'Staff not found'
+      });
+    }
+
+    // Hozircha oddiy response - kelgusida Attendance model qo'shilsa to'liq tarix bo'ladi
+    const attendances = [];
+
+    // Agar lastSeenAt bor bo'lsa, uni qo'shamiz
+    if (staff.lastSeenAt) {
+      attendances.push({
+        _id: staffId,
+        staffId: staffId,
+        type: staff.isWorking ? 'keldi' : 'ketdi',
+        createdAt: staff.lastSeenAt,
+        date: staff.lastSeenAt.toISOString().split('T')[0]
+      });
+    }
+
+    res.json({
+      success: true,
+      attendances: attendances,
+      data: {
+        staffId: staffId,
+        staffName: `${staff.firstName} ${staff.lastName}`,
+        isWorking: staff.isWorking,
+        total: attendances.length
+      }
+    });
+  } catch (error) {
+    next(error);
+  }
+};

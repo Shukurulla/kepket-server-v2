@@ -1,6 +1,7 @@
 const { Order, Table, Food, Notification } = require('../models');
 const { asyncHandler, AppError } = require('../middleware/errorHandler');
-const { emitOrderEvent, ORDER_EVENTS } = require('../events/eventEmitter');
+const { emitOrderEvent, ORDER_EVENTS, emitToUser, emitToRole } = require('../events/eventEmitter');
+const socketService = require('../services/socketService');
 
 /**
  * Get orders with filters
@@ -182,6 +183,10 @@ const createOrder = asyncHandler(async (req, res) => {
 
   await order.save();
 
+  // Populate for response
+  await order.populate('tableId', 'title tableNumber number');
+  await order.populate('waiterId', 'firstName lastName');
+
   // Update table status
   if (tableId) {
     await Table.findByIdAndUpdate(tableId, {
@@ -192,6 +197,65 @@ const createOrder = asyncHandler(async (req, res) => {
 
   // Emit real-time event
   emitOrderEvent(restaurantId.toString(), ORDER_EVENTS.CREATED, { order });
+
+  // Cook uchun kitchen_orders_updated yuborish
+  try {
+    const kitchenOrders = await Order.find({
+      restaurantId,
+      status: { $in: ['active', 'pending', 'approved'] },
+      'items.kitchenStatus': { $in: ['pending', 'preparing'] }
+    }).populate('items.foodId', 'name price categoryId image')
+      .populate('tableId', 'title tableNumber number')
+      .populate('waiterId', 'firstName lastName')
+      .sort({ createdAt: -1 });
+
+    socketService.emitToRole(restaurantId.toString(), 'cook', 'new_kitchen_order', {
+      order: order,
+      allOrders: kitchenOrders,
+      isNewOrder: true,
+      newItems: order.items
+    });
+    socketService.emitToRole(restaurantId.toString(), 'cook', 'kitchen_orders_updated', kitchenOrders);
+  } catch (err) {
+    console.error('Error sending kitchen orders:', err);
+  }
+
+  // Agar buyurtma waiter tasdiqlashini kutayotgan bo'lsa, waiterga xabar berish
+  if (!order.waiterApproved && order.waiterId) {
+    const tableTitle = order.tableId?.title || order.tableName || `Stol ${order.tableNumber}`;
+
+    // Create notification for waiter
+    try {
+      await Notification.create({
+        restaurantId,
+        type: 'new_order',
+        title: 'Yangi buyurtma!',
+        message: `${tableTitle} - yangi buyurtma tasdiqlang`,
+        targetRole: 'waiter',
+        recipientId: order.waiterId,
+        targetUserId: order.waiterId,
+        orderId: order._id,
+        tableId: order.tableId?._id || tableId,
+        tableName: tableTitle,
+        status: 'pending',
+        data: {
+          orderId: order._id,
+          tableNumber: order.tableNumber
+        }
+      });
+    } catch (err) {
+      console.error('Error creating notification:', err);
+    }
+
+    // Emit pending_order_approval to waiter (Flutter app)
+    socketService.emitToUser(order.waiterId.toString(), 'pending_order_approval', {
+      order,
+      orderId: order._id,
+      tableName: tableTitle,
+      tableNumber: order.tableNumber,
+      message: `${tableTitle} - yangi buyurtma tasdiqlang`
+    });
+  }
 
   res.status(201).json({
     success: true,
@@ -597,7 +661,10 @@ const approveOrder = asyncHandler(async (req, res) => {
   const { id } = req.params;
   const { restaurantId, id: userId } = req.user;
 
-  const order = await Order.findOne({ _id: id, restaurantId });
+  const order = await Order.findOne({ _id: id, restaurantId })
+    .populate('tableId', 'title tableNumber number')
+    .populate('waiterId', 'firstName lastName');
+
   if (!order) {
     throw new AppError('Order topilmadi', 404, 'NOT_FOUND');
   }
@@ -610,6 +677,37 @@ const approveOrder = asyncHandler(async (req, res) => {
   await order.save();
 
   emitOrderEvent(restaurantId.toString(), ORDER_EVENTS.APPROVED, { order });
+
+  // Cook uchun kitchen_orders_updated yuborish
+  try {
+    const kitchenOrders = await Order.find({
+      restaurantId,
+      status: { $in: ['active', 'pending', 'approved'] },
+      'items.kitchenStatus': { $in: ['pending', 'preparing'] }
+    }).populate('items.foodId', 'name price categoryId image')
+      .populate('tableId', 'title tableNumber number')
+      .populate('waiterId', 'firstName lastName')
+      .sort({ createdAt: -1 });
+
+    socketService.emitToRole(restaurantId.toString(), 'cook', 'new_kitchen_order', {
+      order: order,
+      allOrders: kitchenOrders,
+      isNewOrder: true,
+      newItems: order.items
+    });
+    socketService.emitToRole(restaurantId.toString(), 'cook', 'kitchen_orders_updated', kitchenOrders);
+  } catch (err) {
+    console.error('Error sending kitchen orders:', err);
+  }
+
+  // Flutter waiter app uchun approve_order_response yuborish
+  if (order.waiterId) {
+    socketService.emitToUser(order.waiterId._id?.toString() || order.waiterId.toString(), 'approve_order_response', {
+      success: true,
+      order,
+      orderId: order._id
+    });
+  }
 
   res.json({
     success: true,
@@ -626,7 +724,10 @@ const rejectOrder = asyncHandler(async (req, res) => {
   const { reason } = req.body;
   const { restaurantId, id: userId } = req.user;
 
-  const order = await Order.findOne({ _id: id, restaurantId });
+  const order = await Order.findOne({ _id: id, restaurantId })
+    .populate('tableId', 'title tableNumber number')
+    .populate('waiterId', 'firstName lastName');
+
   if (!order) {
     throw new AppError('Order topilmadi', 404, 'NOT_FOUND');
   }
@@ -646,6 +747,15 @@ const rejectOrder = asyncHandler(async (req, res) => {
     orderId: id,
     reason
   });
+
+  // Flutter waiter app uchun reject_order_response yuborish
+  if (order.waiterId) {
+    socketService.emitToUser(order.waiterId._id?.toString() || order.waiterId.toString(), 'reject_order_response', {
+      success: true,
+      orderId: order._id,
+      reason
+    });
+  }
 
   res.json({
     success: true,

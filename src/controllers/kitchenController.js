@@ -80,7 +80,7 @@ exports.updateItemStatus = async (req, res, next) => {
   try {
     const { orderId, itemId } = req.params;
     const { restaurantId, id: cookId } = req.user;
-    const { status } = req.body;
+    const { status, readyCount, revertCount } = req.body;
 
     const validStatuses = ['pending', 'preparing', 'ready', 'served', 'cancelled'];
     if (!validStatuses.includes(status)) {
@@ -99,7 +99,21 @@ exports.updateItemStatus = async (req, res, next) => {
       });
     }
 
-    const item = order.items.id(itemId);
+    // itemId raqam (index) yoki ObjectId bo'lishi mumkin
+    // cook-web index yuboradi (0, 1, 2, ...)
+    let item;
+    let actualItemIndex;
+    const itemIndex = parseInt(itemId);
+    if (!isNaN(itemIndex) && itemIndex >= 0 && itemIndex < order.items.length) {
+      // Index orqali topish
+      item = order.items[itemIndex];
+      actualItemIndex = itemIndex;
+    } else {
+      // ObjectId orqali topish
+      item = order.items.id(itemId);
+      actualItemIndex = order.items.findIndex(i => i._id.toString() === itemId);
+    }
+
     if (!item) {
       return res.status(404).json({
         success: false,
@@ -112,8 +126,25 @@ exports.updateItemStatus = async (req, res, next) => {
     if (status === 'preparing') {
       item.startedAt = new Date();
       item.preparedBy = cookId;
+      // Revert qilish
+      if (revertCount && revertCount > 0) {
+        item.readyQuantity = Math.max(0, (item.readyQuantity || 0) - revertCount);
+        if (item.readyQuantity === 0) {
+          item.kitchenStatus = 'preparing';
+        }
+      }
     } else if (status === 'ready') {
       item.readyAt = new Date();
+      // Partial ready
+      if (readyCount && readyCount > 0) {
+        item.readyQuantity = (item.readyQuantity || 0) + readyCount;
+        // Agar barcha items tayyor bo'lmasa, status hali ready emas
+        if (item.readyQuantity < item.quantity) {
+          item.kitchenStatus = 'preparing';
+        }
+      } else {
+        item.readyQuantity = item.quantity;
+      }
     } else if (status === 'served') {
       item.servedAt = new Date();
     }
@@ -121,47 +152,78 @@ exports.updateItemStatus = async (req, res, next) => {
     await order.save();
 
     // Populate for response
-    await order.populate('tableId', 'number floor');
+    await order.populate('tableId', 'number floor title tableNumber');
     await order.populate('waiterId', 'firstName lastName');
-    await order.populate('items.foodId', 'name image');
+    await order.populate('items.foodId', 'name image categoryId');
+
+    // Get all kitchen orders for cook-web
+    const kitchenOrders = await Order.find({
+      restaurantId,
+      status: { $in: ['active', 'pending', 'approved'] },
+      'items.kitchenStatus': { $in: ['pending', 'preparing'] }
+    }).populate('items.foodId', 'name price categoryId image')
+      .populate('tableId', 'title tableNumber number')
+      .populate('waiterId', 'firstName lastName')
+      .sort({ createdAt: -1 });
 
     // Emit socket events
     socketService.emitToRestaurant(restaurantId, 'kitchen:item-status-changed', {
       orderId,
-      itemId,
-      status,
+      itemId: item._id,
+      itemIndex: actualItemIndex,
+      status: item.kitchenStatus,
       order
     });
 
+    // cook-web uchun kitchen_orders_updated yuborish
+    socketService.emitToRole(restaurantId, 'cook', 'kitchen_orders_updated', kitchenOrders);
+
     // If item is ready, notify waiter
-    if (status === 'ready' && order.waiterId) {
+    if (item.kitchenStatus === 'ready' && order.waiterId) {
+      const foodName = item.foodId?.name || item.foodName || 'Taom';
+      const tableNumber = order.tableId?.number || order.tableId?.tableNumber || order.tableNumber;
+
       // Create notification
       await Notification.create({
         restaurantId,
         type: 'food_ready',
         title: 'Taom tayyor!',
-        message: `${item.foodId.name} tayyor - Stol ${order.tableId.number}`,
+        message: `${foodName} tayyor - Stol ${tableNumber}`,
         targetRole: 'waiter',
+        recipientId: order.waiterId._id,
         targetUserId: order.waiterId._id,
+        orderId: order._id,
+        tableId: order.tableId?._id || order.tableId,
+        tableName: order.tableId?.title || `Stol ${tableNumber}`,
+        status: 'pending',
         data: {
           orderId,
-          itemId,
-          tableNumber: order.tableId.number
+          itemId: item._id,
+          tableNumber
         }
       });
 
-      // Emit to waiter
+      // Emit to waiter - Flutter format
+      socketService.emitToUser(order.waiterId._id.toString(), 'order_ready', {
+        orderId,
+        order,
+        tableName: order.tableId?.title || `Stol ${tableNumber}`,
+        tableNumber,
+        message: `${foodName} tayyor!`
+      });
+
+      // Legacy format
       socketService.emitToUser(order.waiterId._id.toString(), 'notification:food-ready', {
         orderId,
-        itemId,
-        foodName: item.foodId.name,
-        tableNumber: order.tableId.number
+        itemId: item._id,
+        foodName,
+        tableNumber
       });
     }
 
     res.json({
       success: true,
-      message: `Item status updated to ${status}`,
+      message: `Item status updated to ${item.kitchenStatus}`,
       data: order
     });
   } catch (error) {

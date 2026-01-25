@@ -11,6 +11,7 @@ router.use(auth);
 // MUHIM: Bu /:id dan OLDIN bo'lishi kerak!
 router.post('/attendance', staffController.attendance);
 router.get('/attendance/today', staffController.getAttendanceToday);
+router.get('/attendance/history', staffController.getAttendanceHistory);
 
 // Get all staff (admin, cashier)
 router.get('/', requireRole('admin', 'cashier'), staffController.getAll);
