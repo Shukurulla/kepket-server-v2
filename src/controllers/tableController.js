@@ -14,7 +14,7 @@ exports.getAll = async (req, res, next) => {
     const tables = await Table.find(filter)
       .populate('activeOrderId')
       .populate('assignedWaiterId', 'firstName lastName')
-      .sort({ tableNumber: 1 });
+      .sort({ title: 1 });
 
     res.json({
       success: true,
@@ -64,7 +64,7 @@ exports.getByStatus = async (req, res, next) => {
     const tables = await Table.find({ restaurantId, status: mappedStatus })
       .populate('activeOrderId')
       .populate('assignedWaiterId', 'firstName lastName')
-      .sort({ tableNumber: 1 });
+      .sort({ title: 1 });
 
     res.json({
       success: true,
@@ -85,7 +85,7 @@ exports.getMyTables = async (req, res, next) => {
       assignedWaiterId: staffId
     })
       .populate('activeOrderId')
-      .sort({ tableNumber: 1 });
+      .sort({ title: 1 });
 
     res.json({
       success: true,
@@ -100,11 +100,8 @@ exports.getMyTables = async (req, res, next) => {
 exports.create = async (req, res, next) => {
   try {
     const { restaurantId } = req.user;
-    // Support multiple field name formats
     const {
       title,
-      number,
-      tableNumber,
       capacity,
       location,
       hasHourlyCharge,
@@ -113,26 +110,29 @@ exports.create = async (req, res, next) => {
       assignedWaiterId
     } = req.body;
 
-    const tableNum = tableNumber || number || 1;
-    const tableTitle = title || `Stol ${tableNum}`;
+    if (!title) {
+      return res.status(400).json({
+        success: false,
+        message: 'Title is required'
+      });
+    }
 
-    // Check if table number already exists
+    // Check if table title already exists
     const existingTable = await Table.findOne({
       restaurantId,
-      tableNumber: tableNum
+      title
     });
 
     if (existingTable) {
       return res.status(400).json({
         success: false,
-        message: `Table ${tableNum} already exists`
+        message: `"${title}" nomli stol allaqachon mavjud`
       });
     }
 
     const table = await Table.create({
       restaurantId,
-      title: tableTitle,
-      tableNumber: tableNum,
+      title,
       capacity: capacity || 4,
       location: location || 'indoor',
       hasHourlyCharge: hasHourlyCharge || false,
@@ -161,15 +161,16 @@ exports.create = async (req, res, next) => {
 exports.bulkCreate = async (req, res, next) => {
   try {
     const { restaurantId } = req.user;
-    const { tables, count, startNumber } = req.body;
+    const { tables, count, prefix } = req.body;
 
     // Support both array format and count format
     let tablesToCreate = tables;
     if (!tables && count) {
       tablesToCreate = [];
-      for (let i = 0; i < count; i++) {
+      const tablePrefix = prefix || 'Stol';
+      for (let i = 1; i <= count; i++) {
         tablesToCreate.push({
-          tableNumber: (startNumber || 1) + i
+          title: `${tablePrefix} ${i}`
         });
       }
     }
@@ -186,23 +187,23 @@ exports.bulkCreate = async (req, res, next) => {
 
     for (const tableData of tablesToCreate) {
       try {
-        const tableNum = tableData.tableNumber || tableData.number;
         const existingTable = await Table.findOne({
           restaurantId,
-          tableNumber: tableNum
+          title: tableData.title
         });
 
         if (existingTable) {
-          errors.push(`Table ${tableNum} already exists`);
+          errors.push(`"${tableData.title}" allaqachon mavjud`);
           continue;
         }
 
         const table = await Table.create({
           restaurantId,
-          title: tableData.title || `Stol ${tableNum}`,
-          tableNumber: tableNum,
+          title: tableData.title,
           capacity: tableData.capacity || 4,
           location: tableData.location || 'indoor',
+          hasHourlyCharge: tableData.hasHourlyCharge || false,
+          hourlyChargeAmount: tableData.hourlyChargeAmount || 0,
           status: 'free'
         });
         createdTables.push(table);
@@ -236,12 +237,6 @@ exports.update = async (req, res, next) => {
 
     delete updates.restaurantId;
     delete updates.activeOrderId;
-
-    // Map old field names to new ones
-    if (updates.number && !updates.tableNumber) {
-      updates.tableNumber = updates.number;
-      delete updates.number;
-    }
 
     const table = await Table.findOneAndUpdate(
       { _id: id, restaurantId },

@@ -14,11 +14,6 @@ const tableSchema = new mongoose.Schema({
     required: [true, 'Table title is required'],
     trim: true
   },
-  tableNumber: {
-    type: Number,
-    required: [true, 'Table number is required'],
-    min: 1
-  },
 
   status: {
     type: String,
@@ -80,8 +75,8 @@ const tableSchema = new mongoose.Schema({
 // Apply soft delete plugin
 tableSchema.plugin(softDeletePlugin);
 
-// Compound index for unique table number per restaurant
-tableSchema.index({ restaurantId: 1, tableNumber: 1 }, { unique: true });
+// Compound index for unique table title per restaurant
+tableSchema.index({ restaurantId: 1, title: 1 }, { unique: true });
 
 // Virtual: Waiter info
 tableSchema.virtual('waiter', {
@@ -103,17 +98,17 @@ tableSchema.virtual('activeOrder', {
 tableSchema.statics.findByRestaurant = function(restaurantId) {
   return this.find({ restaurantId })
     .populate('assignedWaiterId', 'firstName lastName')
-    .sort({ tableNumber: 1 });
+    .sort({ title: 1 });
 };
 
 // Static: Find free tables
 tableSchema.statics.findFreeTables = function(restaurantId) {
-  return this.find({ restaurantId, status: 'free' }).sort({ tableNumber: 1 });
+  return this.find({ restaurantId, status: 'free' }).sort({ title: 1 });
 };
 
 // Static: Find tables by waiter
 tableSchema.statics.findByWaiter = function(waiterId) {
-  return this.find({ assignedWaiterId: waiterId }).sort({ tableNumber: 1 });
+  return this.find({ assignedWaiterId: waiterId }).sort({ title: 1 });
 };
 
 // Methods
