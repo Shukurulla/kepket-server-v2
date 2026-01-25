@@ -112,13 +112,19 @@ exports.create = async (req, res, next) => {
       foodOrder = maxOrder ? maxOrder.order + 1 : 0;
     }
 
+    // Handle uploaded image
+    let imagePath = image;
+    if (req.file) {
+      imagePath = '/uploads/' + req.file.filename;
+    }
+
     const food = await Food.create({
       restaurantId,
       categoryId: foodCategoryId,
       foodName: foodName || name,
       description: description || body,
       price,
-      image,
+      image: imagePath,
       preparationTime,
       ingredients,
       isAvailable: isAvailable !== false,
@@ -145,9 +151,15 @@ exports.update = async (req, res, next) => {
   try {
     const { id } = req.params;
     const { restaurantId } = req.user;
-    const updates = req.body;
+    const updates = { ...req.body };
 
     delete updates.restaurantId;
+
+    // Handle foodName/name field
+    if (updates.name && !updates.foodName) {
+      updates.foodName = updates.name;
+      delete updates.name;
+    }
 
     // Verify category if updating
     if (updates.categoryId) {
@@ -161,6 +173,11 @@ exports.update = async (req, res, next) => {
           message: 'Category not found'
         });
       }
+    }
+
+    // Handle uploaded image
+    if (req.file) {
+      updates.image = '/uploads/' + req.file.filename;
     }
 
     const food = await Food.findOneAndUpdate(

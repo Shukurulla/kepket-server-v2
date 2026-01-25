@@ -39,6 +39,9 @@ if (config.ENABLE_REQUEST_LOGGING) {
 // Static files (notification sounds, etc.)
 app.use(express.static(path.join(__dirname, '../public')));
 
+// Uploads folder for food images
+app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
+
 // API routes
 app.use('/api', routes);
 

@@ -3,6 +3,7 @@ const router = express.Router();
 const foodController = require('../controllers/foodController');
 const { auth } = require('../middleware/auth');
 const { requireRole } = require('../middleware/roleCheck');
+const upload = require('../middleware/upload');
 
 // All routes require authentication
 router.use(auth);
@@ -19,8 +20,8 @@ router.get('/category/:categoryId', foodController.getByCategory);
 // Get single food
 router.get('/:id', foodController.getById);
 
-// Create food (admin only)
-router.post('/', requireRole('admin'), foodController.create);
+// Create food (admin only) - with image upload
+router.post('/', requireRole('admin'), upload.single('image'), foodController.create);
 
 // Bulk update availability (admin only)
 router.post('/bulk-availability', requireRole('admin'), foodController.bulkUpdateAvailability);
@@ -28,9 +29,9 @@ router.post('/bulk-availability', requireRole('admin'), foodController.bulkUpdat
 // Reorder foods (admin only)
 router.post('/reorder', requireRole('admin'), foodController.reorder);
 
-// Update food (admin only)
-router.put('/:id', requireRole('admin'), foodController.update);
-router.patch('/:id', requireRole('admin'), foodController.update);
+// Update food (admin only) - with image upload
+router.put('/:id', requireRole('admin'), upload.single('image'), foodController.update);
+router.patch('/:id', requireRole('admin'), upload.single('image'), foodController.update);
 
 // Toggle availability (admin, cashier)
 router.post('/:id/toggle-availability', requireRole('admin', 'cashier'), foodController.toggleAvailability);
