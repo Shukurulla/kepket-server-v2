@@ -1,0 +1,35 @@
+const express = require('express');
+const router = express.Router();
+const kitchenController = require('../controllers/kitchenController');
+const { auth } = require('../middleware/auth');
+const { requireRole } = require('../middleware/roleCheck');
+
+// All routes require authentication
+router.use(auth);
+
+// Get kitchen statistics
+router.get('/stats', kitchenController.getStats);
+
+// Get kitchen orders (cook, admin, cashier)
+router.get('/orders', kitchenController.getOrders);
+
+// Get single order
+router.get('/orders/:id', kitchenController.getOrder);
+
+// Start preparing order (cook)
+router.post('/orders/:orderId/start', requireRole('cook', 'admin'), kitchenController.startOrder);
+
+// Complete order (cook)
+router.post('/orders/:orderId/complete', requireRole('cook', 'admin'), kitchenController.completeOrder);
+
+// Update item status (cook)
+router.patch(
+  '/orders/:orderId/items/:itemId/status',
+  requireRole('cook', 'admin'),
+  kitchenController.updateItemStatus
+);
+
+// Call waiter
+router.post('/call-waiter', requireRole('cook', 'admin'), kitchenController.callWaiter);
+
+module.exports = router;

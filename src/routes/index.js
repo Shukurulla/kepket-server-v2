@@ -4,10 +4,24 @@ const router = express.Router();
 // Import route modules
 const authRoutes = require('./auth.routes');
 const orderRoutes = require('./order.routes');
+const staffRoutes = require('./staff.routes');
+const categoryRoutes = require('./category.routes');
+const foodRoutes = require('./food.routes');
+const tableRoutes = require('./table.routes');
+const kitchenRoutes = require('./kitchen.routes');
+const notificationRoutes = require('./notification.routes');
+const reportRoutes = require('./report.routes');
 
 // API routes
 router.use('/auth', authRoutes);
 router.use('/orders', orderRoutes);
+router.use('/staff', staffRoutes);
+router.use('/categories', categoryRoutes);
+router.use('/foods', foodRoutes);
+router.use('/tables', tableRoutes);
+router.use('/kitchen', kitchenRoutes);
+router.use('/notifications', notificationRoutes);
+router.use('/reports', reportRoutes);
 
 // Health check
 router.get('/health', (req, res) => {
@@ -32,6 +46,7 @@ router.get('/', (req, res) => {
       foods: '/api/foods',
       tables: '/api/tables',
       kitchen: '/api/kitchen',
+      notifications: '/api/notifications',
       reports: '/api/reports'
     }
   });
@@ -50,13 +65,25 @@ router.post('/staff/login', (req, res, next) => {
 // Kitchen orders (legacy)
 router.get('/kitchen-orders', (req, res) => {
   console.warn('DEPRECATED: Use /api/kitchen/orders instead');
-  res.redirect(307, '/api/orders?status=preparing');
+  res.redirect(307, '/api/kitchen/orders');
 });
 
 // Orders today (legacy)
 router.get('/orders/today', (req, res) => {
-  console.warn('DEPRECATED: Use /api/orders/today instead');
-  res.redirect(307, '/api/orders/today');
+  console.warn('DEPRECATED: Use /api/orders?period=today instead');
+  res.redirect(307, '/api/orders?period=today');
+});
+
+// Waiters list (legacy)
+router.get('/waiters', (req, res) => {
+  console.warn('DEPRECATED: Use /api/staff/waiters instead');
+  res.redirect(307, '/api/staff/waiters');
+});
+
+// Menu (legacy)
+router.get('/menu', (req, res) => {
+  console.warn('DEPRECATED: Use /api/foods/menu instead');
+  res.redirect(307, '/api/foods/menu');
 });
 
 module.exports = router;

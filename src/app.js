@@ -1,6 +1,7 @@
 const express = require('express');
 const cors = require('cors');
 const http = require('http');
+const path = require('path');
 
 // Load environment variables
 const config = require('./config/env');
@@ -34,6 +35,9 @@ if (config.ENABLE_REQUEST_LOGGING) {
     next();
   });
 }
+
+// Static files (notification sounds, etc.)
+app.use(express.static(path.join(__dirname, '../public')));
 
 // API routes
 app.use('/api', routes);
