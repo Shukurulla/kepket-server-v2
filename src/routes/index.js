@@ -90,4 +90,19 @@ router.get('/menu', (req, res) => {
   res.redirect(307, '/api/foods/menu');
 });
 
+// Restaurant admin staff routes (legacy - from old backend)
+router.use('/restaurant-admin/staff', (req, res, next) => {
+  console.warn('DEPRECATED: Use /api/staff instead');
+  req.url = req.originalUrl.replace('/api/restaurant-admin/staff', '');
+  if (req.url === '') req.url = '/';
+  staffRoutes(req, res, next);
+});
+
+// Save orders (legacy - paid orders endpoint)
+router.get('/save-orders', (req, res, next) => {
+  console.warn('DEPRECATED: Use /api/orders?status=paid instead');
+  req.query.status = 'paid';
+  orderRoutes(req, res, next);
+});
+
 module.exports = router;
