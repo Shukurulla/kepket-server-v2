@@ -5,15 +5,16 @@ const socketService = require('../services/socketService');
 exports.getAll = async (req, res, next) => {
   try {
     const { restaurantId } = req.user;
-    const { status, floor } = req.query;
+    const { status, location } = req.query;
 
     const filter = { restaurantId };
     if (status) filter.status = status;
-    if (floor) filter.floor = parseInt(floor);
+    if (location) filter.location = location;
 
     const tables = await Table.find(filter)
-      .populate('currentOrderId')
-      .sort({ floor: 1, number: 1 });
+      .populate('activeOrderId')
+      .populate('assignedWaiterId', 'firstName lastName')
+      .sort({ tableNumber: 1 });
 
     res.json({
       success: true,
@@ -31,7 +32,8 @@ exports.getById = async (req, res, next) => {
     const { restaurantId } = req.user;
 
     const table = await Table.findOne({ _id: id, restaurantId })
-      .populate('currentOrderId');
+      .populate('activeOrderId')
+      .populate('assignedWaiterId', 'firstName lastName');
 
     if (!table) {
       return res.status(404).json({
@@ -55,9 +57,14 @@ exports.getByStatus = async (req, res, next) => {
     const { status } = req.params;
     const { restaurantId } = req.user;
 
-    const tables = await Table.find({ restaurantId, status })
-      .populate('currentOrderId')
-      .sort({ floor: 1, number: 1 });
+    // Map old status names
+    const statusMap = { 'available': 'free', 'cleaning': 'free' };
+    const mappedStatus = statusMap[status] || status;
+
+    const tables = await Table.find({ restaurantId, status: mappedStatus })
+      .populate('activeOrderId')
+      .populate('assignedWaiterId', 'firstName lastName')
+      .sort({ tableNumber: 1 });
 
     res.json({
       success: true,
@@ -73,20 +80,12 @@ exports.getMyTables = async (req, res, next) => {
   try {
     const { restaurantId, id: staffId } = req.user;
 
-    const staff = await Staff.findById(staffId);
-    if (!staff || !staff.tableIds || staff.tableIds.length === 0) {
-      return res.json({
-        success: true,
-        data: []
-      });
-    }
-
     const tables = await Table.find({
-      _id: { $in: staff.tableIds },
-      restaurantId
+      restaurantId,
+      assignedWaiterId: staffId
     })
-      .populate('currentOrderId')
-      .sort({ floor: 1, number: 1 });
+      .populate('activeOrderId')
+      .sort({ tableNumber: 1 });
 
     res.json({
       success: true,
@@ -101,30 +100,49 @@ exports.getMyTables = async (req, res, next) => {
 exports.create = async (req, res, next) => {
   try {
     const { restaurantId } = req.user;
-    const { number, capacity, floor, position } = req.body;
+    // Support multiple field name formats
+    const {
+      title,
+      number,
+      tableNumber,
+      capacity,
+      location,
+      hasHourlyCharge,
+      hourlyChargeAmount,
+      surcharge,
+      assignedWaiterId
+    } = req.body;
+
+    const tableNum = tableNumber || number || 1;
+    const tableTitle = title || `Stol ${tableNum}`;
 
     // Check if table number already exists
     const existingTable = await Table.findOne({
       restaurantId,
-      number,
-      floor: floor || 1
+      tableNumber: tableNum
     });
 
     if (existingTable) {
       return res.status(400).json({
         success: false,
-        message: `Table ${number} already exists on floor ${floor || 1}`
+        message: `Table ${tableNum} already exists`
       });
     }
 
     const table = await Table.create({
       restaurantId,
-      number,
+      title: tableTitle,
+      tableNumber: tableNum,
       capacity: capacity || 4,
-      floor: floor || 1,
-      position,
-      status: 'available'
+      location: location || 'indoor',
+      hasHourlyCharge: hasHourlyCharge || false,
+      hourlyChargeAmount: hourlyChargeAmount || 0,
+      surcharge: surcharge || 0,
+      assignedWaiterId,
+      status: 'free'
     });
+
+    await table.populate('assignedWaiterId', 'firstName lastName');
 
     // Emit socket event
     socketService.emitToRestaurant(restaurantId, 'table:created', table);
@@ -143,41 +161,53 @@ exports.create = async (req, res, next) => {
 exports.bulkCreate = async (req, res, next) => {
   try {
     const { restaurantId } = req.user;
-    const { tables } = req.body; // Array of { number, capacity, floor }
+    const { tables, count, startNumber } = req.body;
 
-    if (!Array.isArray(tables) || tables.length === 0) {
+    // Support both array format and count format
+    let tablesToCreate = tables;
+    if (!tables && count) {
+      tablesToCreate = [];
+      for (let i = 0; i < count; i++) {
+        tablesToCreate.push({
+          tableNumber: (startNumber || 1) + i
+        });
+      }
+    }
+
+    if (!Array.isArray(tablesToCreate) || tablesToCreate.length === 0) {
       return res.status(400).json({
         success: false,
-        message: 'tables must be a non-empty array'
+        message: 'tables must be a non-empty array or provide count'
       });
     }
 
     const createdTables = [];
     const errors = [];
 
-    for (const tableData of tables) {
+    for (const tableData of tablesToCreate) {
       try {
+        const tableNum = tableData.tableNumber || tableData.number;
         const existingTable = await Table.findOne({
           restaurantId,
-          number: tableData.number,
-          floor: tableData.floor || 1
+          tableNumber: tableNum
         });
 
         if (existingTable) {
-          errors.push(`Table ${tableData.number} already exists on floor ${tableData.floor || 1}`);
+          errors.push(`Table ${tableNum} already exists`);
           continue;
         }
 
         const table = await Table.create({
           restaurantId,
-          number: tableData.number,
+          title: tableData.title || `Stol ${tableNum}`,
+          tableNumber: tableNum,
           capacity: tableData.capacity || 4,
-          floor: tableData.floor || 1,
-          status: 'available'
+          location: tableData.location || 'indoor',
+          status: 'free'
         });
         createdTables.push(table);
       } catch (err) {
-        errors.push(`Failed to create table ${tableData.number}: ${err.message}`);
+        errors.push(`Failed to create table: ${err.message}`);
       }
     }
 
@@ -205,13 +235,21 @@ exports.update = async (req, res, next) => {
     const updates = req.body;
 
     delete updates.restaurantId;
-    delete updates.currentOrderId;
+    delete updates.activeOrderId;
+
+    // Map old field names to new ones
+    if (updates.number && !updates.tableNumber) {
+      updates.tableNumber = updates.number;
+      delete updates.number;
+    }
 
     const table = await Table.findOneAndUpdate(
       { _id: id, restaurantId },
       updates,
       { new: true, runValidators: true }
-    ).populate('currentOrderId');
+    )
+      .populate('activeOrderId')
+      .populate('assignedWaiterId', 'firstName lastName');
 
     if (!table) {
       return res.status(404).json({
@@ -240,8 +278,15 @@ exports.updateStatus = async (req, res, next) => {
     const { restaurantId } = req.user;
     const { status } = req.body;
 
-    const validStatuses = ['available', 'occupied', 'reserved', 'cleaning'];
-    if (!validStatuses.includes(status)) {
+    // Map old status names to new ones
+    const statusMap = {
+      'available': 'free',
+      'cleaning': 'free'
+    };
+    const mappedStatus = statusMap[status] || status;
+
+    const validStatuses = ['free', 'occupied', 'reserved'];
+    if (!validStatuses.includes(mappedStatus)) {
       return res.status(400).json({
         success: false,
         message: `Invalid status. Must be one of: ${validStatuses.join(', ')}`
@@ -250,9 +295,11 @@ exports.updateStatus = async (req, res, next) => {
 
     const table = await Table.findOneAndUpdate(
       { _id: id, restaurantId },
-      { status },
+      { status: mappedStatus },
       { new: true }
-    ).populate('currentOrderId');
+    )
+      .populate('activeOrderId')
+      .populate('assignedWaiterId', 'firstName lastName');
 
     if (!table) {
       return res.status(404).json({
@@ -264,13 +311,13 @@ exports.updateStatus = async (req, res, next) => {
     // Emit socket event
     socketService.emitToRestaurant(restaurantId, 'table:status-changed', {
       tableId: id,
-      status,
+      status: mappedStatus,
       table
     });
 
     res.json({
       success: true,
-      message: `Table status changed to ${status}`,
+      message: `Table status changed to ${mappedStatus}`,
       data: table
     });
   } catch (error) {
@@ -294,7 +341,7 @@ exports.delete = async (req, res, next) => {
     }
 
     // Check if table has active order
-    if (table.status === 'occupied' && table.currentOrderId) {
+    if (table.status === 'occupied' && table.activeOrderId) {
       return res.status(400).json({
         success: false,
         message: 'Cannot delete table with active order'
@@ -360,10 +407,10 @@ exports.getWithOrder = async (req, res, next) => {
       });
     }
 
-    let currentOrder = null;
-    if (table.currentOrderId) {
-      currentOrder = await Order.findById(table.currentOrderId)
-        .populate('items.foodId', 'name price image')
+    let activeOrder = null;
+    if (table.activeOrderId) {
+      activeOrder = await Order.findById(table.activeOrderId)
+        .populate('items.foodId', 'foodName price image')
         .populate('waiterId', 'firstName lastName');
     }
 
@@ -371,7 +418,7 @@ exports.getWithOrder = async (req, res, next) => {
       success: true,
       data: {
         ...table.toObject(),
-        currentOrder
+        activeOrder
       }
     });
   } catch (error) {
@@ -379,7 +426,7 @@ exports.getWithOrder = async (req, res, next) => {
   }
 };
 
-// Get floor summary
+// Get location summary
 exports.getFloorSummary = async (req, res, next) => {
   try {
     const { restaurantId } = req.user;
@@ -388,19 +435,16 @@ exports.getFloorSummary = async (req, res, next) => {
       { $match: { restaurantId: restaurantId, isDeleted: { $ne: true } } },
       {
         $group: {
-          _id: '$floor',
+          _id: '$location',
           total: { $sum: 1 },
-          available: {
-            $sum: { $cond: [{ $eq: ['$status', 'available'] }, 1, 0] }
+          free: {
+            $sum: { $cond: [{ $eq: ['$status', 'free'] }, 1, 0] }
           },
           occupied: {
             $sum: { $cond: [{ $eq: ['$status', 'occupied'] }, 1, 0] }
           },
           reserved: {
             $sum: { $cond: [{ $eq: ['$status', 'reserved'] }, 1, 0] }
-          },
-          cleaning: {
-            $sum: { $cond: [{ $eq: ['$status', 'cleaning'] }, 1, 0] }
           }
         }
       },
@@ -410,6 +454,78 @@ exports.getFloorSummary = async (req, res, next) => {
     res.json({
       success: true,
       data: summary
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// Assign waiter to table
+exports.assignWaiter = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const { restaurantId } = req.user;
+    const { waiterId } = req.body;
+
+    const table = await Table.findOne({ _id: id, restaurantId });
+
+    if (!table) {
+      return res.status(404).json({
+        success: false,
+        message: 'Table not found'
+      });
+    }
+
+    // Verify waiter exists
+    if (waiterId) {
+      const waiter = await Staff.findOne({
+        _id: waiterId,
+        restaurantId,
+        role: 'waiter'
+      });
+      if (!waiter) {
+        return res.status(400).json({
+          success: false,
+          message: 'Waiter not found'
+        });
+      }
+    }
+
+    table.assignedWaiterId = waiterId || null;
+    await table.save();
+    await table.populate('assignedWaiterId', 'firstName lastName');
+
+    // Emit socket event
+    socketService.emitToRestaurant(restaurantId, 'table:waiter-assigned', {
+      tableId: id,
+      waiterId,
+      table
+    });
+
+    res.json({
+      success: true,
+      message: waiterId ? 'Waiter assigned successfully' : 'Waiter removed',
+      data: table
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// Get waiters for assignment
+exports.getWaiters = async (req, res, next) => {
+  try {
+    const { restaurantId } = req.user;
+
+    const waiters = await Staff.find({
+      restaurantId,
+      role: 'waiter',
+      status: 'working'
+    }).select('firstName lastName isWorking isOnline');
+
+    res.json({
+      success: true,
+      data: waiters
     });
   } catch (error) {
     next(error);

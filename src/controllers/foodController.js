@@ -11,12 +11,12 @@ exports.getAll = async (req, res, next) => {
     if (categoryId) filter.categoryId = categoryId;
     if (isAvailable !== undefined) filter.isAvailable = isAvailable === 'true';
     if (search) {
-      filter.name = { $regex: search, $options: 'i' };
+      filter.foodName = { $regex: search, $options: 'i' };
     }
 
     const foods = await Food.find(filter)
-      .populate('categoryId', 'name')
-      .sort({ order: 1, name: 1 });
+      .populate('categoryId', 'title')
+      .sort({ order: 1, foodName: 1 });
 
     res.json({
       success: true,
@@ -34,7 +34,7 @@ exports.getById = async (req, res, next) => {
     const { restaurantId } = req.user;
 
     const food = await Food.findOne({ _id: id, restaurantId })
-      .populate('categoryId', 'name');
+      .populate('categoryId', 'title');
 
     if (!food) {
       return res.status(404).json({
@@ -62,7 +62,7 @@ exports.getByCategory = async (req, res, next) => {
       restaurantId,
       categoryId,
       isAvailable: true
-    }).sort({ order: 1, name: 1 });
+    }).sort({ order: 1, foodName: 1 });
 
     res.json({
       success: true,
@@ -79,9 +79,12 @@ exports.create = async (req, res, next) => {
     const { restaurantId } = req.user;
     const {
       name,
+      foodName,
       description,
+      body,
       price,
       categoryId,
+      category,
       image,
       preparationTime,
       ingredients,
@@ -89,9 +92,11 @@ exports.create = async (req, res, next) => {
       order
     } = req.body;
 
+    const foodCategoryId = categoryId || category;
+
     // Verify category exists
-    const category = await Category.findOne({ _id: categoryId, restaurantId });
-    if (!category) {
+    const categoryDoc = await Category.findOne({ _id: foodCategoryId, restaurantId });
+    if (!categoryDoc) {
       return res.status(400).json({
         success: false,
         message: 'Category not found'
@@ -101,7 +106,7 @@ exports.create = async (req, res, next) => {
     // Get max order if not provided
     let foodOrder = order;
     if (foodOrder === undefined) {
-      const maxOrder = await Food.findOne({ categoryId })
+      const maxOrder = await Food.findOne({ categoryId: foodCategoryId })
         .sort({ order: -1 })
         .select('order');
       foodOrder = maxOrder ? maxOrder.order + 1 : 0;
@@ -109,9 +114,9 @@ exports.create = async (req, res, next) => {
 
     const food = await Food.create({
       restaurantId,
-      categoryId,
-      name,
-      description,
+      categoryId: foodCategoryId,
+      foodName: foodName || name,
+      description: description || body,
       price,
       image,
       preparationTime,
@@ -120,7 +125,7 @@ exports.create = async (req, res, next) => {
       order: foodOrder
     });
 
-    await food.populate('categoryId', 'name');
+    await food.populate('categoryId', 'title');
 
     // Emit socket event
     socketService.emitToRestaurant(restaurantId, 'food:created', food);
@@ -162,7 +167,7 @@ exports.update = async (req, res, next) => {
       { _id: id, restaurantId },
       updates,
       { new: true, runValidators: true }
-    ).populate('categoryId', 'name');
+    ).populate('categoryId', 'title');
 
     if (!food) {
       return res.status(404).json({
@@ -202,7 +207,7 @@ exports.toggleAvailability = async (req, res, next) => {
     food.isAvailable = !food.isAvailable;
     await food.save();
 
-    await food.populate('categoryId', 'name');
+    await food.populate('categoryId', 'title');
 
     // Emit socket event
     socketService.emitToRestaurant(restaurantId, 'food:updated', food);
@@ -262,7 +267,7 @@ exports.restore = async (req, res, next) => {
     }
 
     await food.restore();
-    await food.populate('categoryId', 'name');
+    await food.populate('categoryId', 'title');
 
     // Emit socket event
     socketService.emitToRestaurant(restaurantId, 'food:restored', food);
@@ -296,7 +301,7 @@ exports.bulkUpdateAvailability = async (req, res, next) => {
     );
 
     const foods = await Food.find({ _id: { $in: foodIds } })
-      .populate('categoryId', 'name');
+      .populate('categoryId', 'title');
 
     // Emit socket event
     socketService.emitToRestaurant(restaurantId, 'foods:bulk-updated', foods);
@@ -336,7 +341,7 @@ exports.reorder = async (req, res, next) => {
 
     // Get updated foods
     const foods = await Food.find({ _id: { $in: foodIds } })
-      .populate('categoryId', 'name')
+      .populate('categoryId', 'title')
       .sort({ order: 1 });
 
     // Emit socket event
@@ -358,18 +363,19 @@ exports.getMenu = async (req, res, next) => {
     const { restaurantId } = req.user;
 
     const categories = await Category.find({ restaurantId })
-      .sort({ order: 1, name: 1 });
+      .sort({ sortOrder: 1, title: 1 });
 
     const menu = await Promise.all(
       categories.map(async (category) => {
         const foods = await Food.find({
           categoryId: category._id,
           isAvailable: true
-        }).sort({ order: 1, name: 1 });
+        }).sort({ order: 1, foodName: 1 });
 
         return {
           _id: category._id,
-          name: category.name,
+          title: category.title,
+          name: category.title, // For backward compatibility
           description: category.description,
           image: category.image,
           foods

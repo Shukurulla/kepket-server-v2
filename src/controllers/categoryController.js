@@ -8,7 +8,7 @@ exports.getAll = async (req, res, next) => {
     const { includeEmpty } = req.query;
 
     let categories = await Category.find({ restaurantId })
-      .sort({ order: 1, name: 1 });
+      .sort({ sortOrder: 1, title: 1 });
 
     // Optionally include food count
     if (includeEmpty === 'false') {
@@ -52,7 +52,7 @@ exports.getById = async (req, res, next) => {
     const foods = await Food.find({
       categoryId: id,
       isAvailable: true
-    }).sort({ order: 1, name: 1 });
+    }).sort({ sortOrder: 1, title: 1 });
 
     res.json({
       success: true,
@@ -70,23 +70,25 @@ exports.getById = async (req, res, next) => {
 exports.create = async (req, res, next) => {
   try {
     const { restaurantId } = req.user;
-    const { name, description, image, order } = req.body;
+    // Support both 'title' and 'name' for backward compatibility
+    const { title, name, description, image, order, sortOrder } = req.body;
+    const categoryTitle = title || name;
 
     // Get max order if not provided
-    let categoryOrder = order;
+    let categoryOrder = order ?? sortOrder;
     if (categoryOrder === undefined) {
       const maxOrder = await Category.findOne({ restaurantId })
-        .sort({ order: -1 })
-        .select('order');
-      categoryOrder = maxOrder ? maxOrder.order + 1 : 0;
+        .sort({ sortOrder: -1 })
+        .select('sortOrder');
+      categoryOrder = maxOrder ? maxOrder.sortOrder + 1 : 0;
     }
 
     const category = await Category.create({
       restaurantId,
-      name,
+      title: categoryTitle,
       description,
       image,
-      order: categoryOrder
+      sortOrder: categoryOrder
     });
 
     // Emit socket event
@@ -222,7 +224,7 @@ exports.reorder = async (req, res, next) => {
     const updates = categoryIds.map((id, index) =>
       Category.findOneAndUpdate(
         { _id: id, restaurantId },
-        { order: index }
+        { sortOrder: index }
       )
     );
 
@@ -230,7 +232,7 @@ exports.reorder = async (req, res, next) => {
 
     // Get updated categories
     const categories = await Category.find({ restaurantId })
-      .sort({ order: 1 });
+      .sort({ sortOrder: 1 });
 
     // Emit socket event
     socketService.emitToRestaurant(restaurantId, 'categories:reordered', categories);

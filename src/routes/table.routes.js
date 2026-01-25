@@ -45,4 +45,10 @@ router.delete('/:id', requireRole('admin'), tableController.delete);
 // Restore table (admin only)
 router.post('/:id/restore', requireRole('admin'), tableController.restore);
 
+// Assign waiter to table (admin only)
+router.post('/:id/assign-waiter', requireRole('admin'), tableController.assignWaiter);
+
+// Get waiters for assignment
+router.get('/waiters/list', tableController.getWaiters);
+
 module.exports = router;
