@@ -249,7 +249,7 @@ const orderSchema = new mongoose.Schema({
   // Source tracking
   source: {
     type: String,
-    enum: ['waiter', 'customer', 'admin'],
+    enum: ['waiter', 'customer', 'admin', 'cashier'],
     default: 'waiter'
   },
 
