@@ -11,6 +11,8 @@ const tableRoutes = require('./table.routes');
 const kitchenRoutes = require('./kitchen.routes');
 const notificationRoutes = require('./notification.routes');
 const reportRoutes = require('./report.routes');
+const qrRoutes = require('./qr.routes');
+const superAdminRoutes = require('./superAdmin.routes');
 
 // API routes
 router.use('/auth', authRoutes);
@@ -22,6 +24,8 @@ router.use('/tables', tableRoutes);
 router.use('/kitchen', kitchenRoutes);
 router.use('/notifications', notificationRoutes);
 router.use('/reports', reportRoutes);
+router.use('/qr', qrRoutes);
+router.use('/super-admin', superAdminRoutes);
 
 // Health check
 router.get('/health', (req, res) => {

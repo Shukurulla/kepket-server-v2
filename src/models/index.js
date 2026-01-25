@@ -5,6 +5,7 @@ const Food = require('./food');
 const Table = require('./table');
 const Order = require('./order');
 const Notification = require('./notification');
+const SuperAdmin = require('./superAdmin');
 
 module.exports = {
   Restaurant,
@@ -13,5 +14,6 @@ module.exports = {
   Food,
   Table,
   Order,
-  Notification
+  Notification,
+  SuperAdmin
 };
