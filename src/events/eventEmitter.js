@@ -38,21 +38,20 @@ const emitOrderEvent = (restaurantId, eventType, data) => {
   socketService.emitToRestaurant(restaurantId, eventType, data);
 
   // Also emit legacy events for backward compatibility
+  // NOTE: kitchen_orders_updated is handled separately in controllers with proper format (array)
+  // Do NOT emit kitchen_orders_updated here as it sends object instead of array
   switch (eventType) {
     case ORDER_EVENTS.CREATED:
-      socketService.emitToRole(restaurantId, 'cook', 'kitchen_orders_updated', data);
       socketService.emitToRole(restaurantId, 'cashier', 'new_order', data);
       break;
 
     case ORDER_EVENTS.UPDATED:
-      socketService.emitToRole(restaurantId, 'cook', 'kitchen_orders_updated', data);
       if (data.action === 'item_deleted' || data.action === 'item_quantity_changed') {
         socketService.emitToRole(restaurantId, 'cashier', 'order_item_deleted', data);
       }
       break;
 
     case ORDER_EVENTS.DELETED:
-      socketService.emitToRole(restaurantId, 'cook', 'kitchen_orders_updated', data);
       socketService.emitToRole(restaurantId, 'cashier', 'order_deleted', data);
       break;
 

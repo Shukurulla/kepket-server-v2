@@ -267,12 +267,12 @@ class SocketService {
       // Also emit legacy events for backward compatibility
       this.emitToRestaurant(data.restaurantId, 'new_order', { order });
 
-      // Cook uchun barcha kitchen orderlarni yuborish
+      // Cook uchun barcha kitchen orderlarni yuborish (including ready items)
       try {
         const rawKitchenOrders = await Order.find({
           restaurantId: data.restaurantId,
-          status: { $in: ['pending', 'preparing', 'approved'] },
-          'items.status': { $in: ['pending', 'preparing'] }
+          status: { $in: ['pending', 'preparing', 'approved', 'ready'] },
+          'items.status': { $in: ['pending', 'preparing', 'ready'] }
         }).populate('items.foodId', 'name price categoryId image')
           .populate('tableId', 'title tableNumber number')
           .populate('waiterId', 'firstName lastName')
@@ -281,7 +281,7 @@ class SocketService {
         // Transform for cook-web format
         const kitchenOrders = rawKitchenOrders.map(o => {
           const items = o.items
-            .filter(i => ['pending', 'preparing'].includes(i.status))
+            .filter(i => ['pending', 'preparing', 'ready'].includes(i.status))
             .map(i => ({
               ...i.toObject(),
               kitchenStatus: i.status,
@@ -339,6 +339,8 @@ class SocketService {
         return;
       }
 
+      const restaurantId = order.restaurantId;
+
       // Mark all items as served
       order.items.forEach(item => {
         if (!item.isDeleted) {
@@ -351,10 +353,50 @@ class SocketService {
       order.servedAt = new Date();
       await order.save();
 
-      this.emitToRestaurant(order.restaurantId.toString(), 'order:updated', {
+      this.emitToRestaurant(restaurantId.toString(), 'order:updated', {
         order,
         action: 'served'
       });
+
+      // Cook uchun kitchen_orders_updated yuborish (served itemlar yo'qoladi)
+      try {
+        const rawKitchenOrders = await Order.find({
+          restaurantId,
+          status: { $in: ['pending', 'approved', 'preparing', 'ready'] },
+          'items.status': { $in: ['pending', 'preparing', 'ready'] }
+        }).populate('items.foodId', 'name price categoryId image')
+          .populate('tableId', 'title tableNumber number')
+          .populate('waiterId', 'firstName lastName')
+          .sort({ createdAt: -1 });
+
+        const kitchenOrders = rawKitchenOrders.map(o => {
+          const items = o.items
+            .filter(i => ['pending', 'preparing', 'ready'].includes(i.status))
+            .map(i => ({
+              ...i.toObject(),
+              kitchenStatus: i.status,
+              name: i.foodId?.name || i.foodName
+            }));
+          return {
+            _id: o._id,
+            orderId: o._id,
+            orderNumber: o.orderNumber,
+            tableId: o.tableId,
+            tableName: o.tableId?.title || o.tableName || `Stol ${o.tableId?.number || o.tableNumber || ''}`,
+            tableNumber: o.tableId?.number || o.tableNumber,
+            waiterId: o.waiterId,
+            waiterName: o.waiterId ? `${o.waiterId.firstName || ''} ${o.waiterId.lastName || ''}`.trim() : '',
+            items,
+            status: o.status,
+            createdAt: o.createdAt,
+            restaurantId: o.restaurantId
+          };
+        }).filter(o => o.items.length > 0);
+
+        this.emitToRole(restaurantId.toString(), 'cook', 'kitchen_orders_updated', kitchenOrders);
+      } catch (err) {
+        console.error('Error sending kitchen orders after serve:', err);
+      }
 
       socket.emit('order_served_confirmed', { orderId });
 

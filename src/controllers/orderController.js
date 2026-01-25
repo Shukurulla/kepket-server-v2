@@ -198,12 +198,12 @@ const createOrder = asyncHandler(async (req, res) => {
   // Emit real-time event
   emitOrderEvent(restaurantId.toString(), ORDER_EVENTS.CREATED, { order });
 
-  // Cook uchun kitchen_orders_updated yuborish
+  // Cook uchun kitchen_orders_updated yuborish (including ready items)
   try {
     const rawKitchenOrders = await Order.find({
       restaurantId,
-      status: { $in: ['pending', 'approved', 'preparing'] },
-      'items.status': { $in: ['pending', 'preparing'] }
+      status: { $in: ['pending', 'approved', 'preparing', 'ready'] },
+      'items.status': { $in: ['pending', 'preparing', 'ready'] }
     }).populate('items.foodId', 'name price categoryId image')
       .populate('tableId', 'title tableNumber number')
       .populate('waiterId', 'firstName lastName')
@@ -212,7 +212,7 @@ const createOrder = asyncHandler(async (req, res) => {
     // Transform for cook-web format
     const kitchenOrders = rawKitchenOrders.map(o => {
       const items = o.items
-        .filter(i => ['pending', 'preparing'].includes(i.status))
+        .filter(i => ['pending', 'preparing', 'ready'].includes(i.status))
         .map(i => ({
           ...i.toObject(),
           kitchenStatus: i.status,
@@ -696,12 +696,12 @@ const approveOrder = asyncHandler(async (req, res) => {
 
   emitOrderEvent(restaurantId.toString(), ORDER_EVENTS.APPROVED, { order });
 
-  // Cook uchun kitchen_orders_updated yuborish
+  // Cook uchun kitchen_orders_updated yuborish (including ready items)
   try {
     const rawKitchenOrders = await Order.find({
       restaurantId,
-      status: { $in: ['pending', 'approved', 'preparing'] },
-      'items.status': { $in: ['pending', 'preparing'] }
+      status: { $in: ['pending', 'approved', 'preparing', 'ready'] },
+      'items.status': { $in: ['pending', 'preparing', 'ready'] }
     }).populate('items.foodId', 'name price categoryId image')
       .populate('tableId', 'title tableNumber number')
       .populate('waiterId', 'firstName lastName')
@@ -710,7 +710,7 @@ const approveOrder = asyncHandler(async (req, res) => {
     // Transform for cook-web format
     const kitchenOrders = rawKitchenOrders.map(o => {
       const items = o.items
-        .filter(i => ['pending', 'preparing'].includes(i.status))
+        .filter(i => ['pending', 'preparing', 'ready'].includes(i.status))
         .map(i => ({
           ...i.toObject(),
           kitchenStatus: i.status,
