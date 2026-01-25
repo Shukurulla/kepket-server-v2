@@ -246,7 +246,7 @@ const createOrder = asyncHandler(async (req, res) => {
       restaurantId,
       status: { $in: ['pending', 'approved', 'preparing', 'ready'] },
       'items.status': { $in: ['pending', 'preparing', 'ready'] }
-    }).populate('items.foodId', 'name price categoryId image')
+    }).populate('items.foodId', 'name price categoryId image requireDoubleConfirmation')
       .populate('tableId', 'title tableNumber number')
       .populate('waiterId', 'firstName lastName')
       .sort({ createdAt: -1 });
@@ -258,7 +258,8 @@ const createOrder = asyncHandler(async (req, res) => {
         .map(i => ({
           ...i.toObject(),
           kitchenStatus: i.status,
-          name: i.foodId?.name || i.foodName
+          name: i.foodId?.name || i.foodName,
+          requireDoubleConfirmation: i.foodId?.requireDoubleConfirmation || false
         }));
       return {
         _id: o._id,
@@ -395,7 +396,7 @@ const deleteOrder = asyncHandler(async (req, res) => {
       restaurantId,
       status: { $in: ['pending', 'approved', 'preparing', 'ready'] },
       'items.status': { $in: ['pending', 'preparing', 'ready'] }
-    }).populate('items.foodId', 'name price categoryId image')
+    }).populate('items.foodId', 'name price categoryId image requireDoubleConfirmation')
       .populate('tableId', 'title tableNumber number')
       .populate('waiterId', 'firstName lastName')
       .sort({ createdAt: -1 });
@@ -406,7 +407,8 @@ const deleteOrder = asyncHandler(async (req, res) => {
         .map(i => ({
           ...i.toObject(),
           kitchenStatus: i.status,
-          name: i.foodId?.name || i.foodName
+          name: i.foodId?.name || i.foodName,
+          requireDoubleConfirmation: i.foodId?.requireDoubleConfirmation || false
         }));
       return {
         _id: o._id,
@@ -503,7 +505,7 @@ const deleteItem = asyncHandler(async (req, res) => {
   // Populate order data
   await order.populate('tableId', 'number floor title tableNumber');
   await order.populate('waiterId', 'firstName lastName phone');
-  await order.populate('items.foodId', 'name price image categoryId');
+  await order.populate('items.foodId', 'name price image categoryId requireDoubleConfirmation');
 
   if (orderDeleted) {
     // Free table
@@ -528,7 +530,7 @@ const deleteItem = asyncHandler(async (req, res) => {
       restaurantId,
       status: { $in: ['pending', 'approved', 'preparing', 'ready'] },
       'items.status': { $in: ['pending', 'preparing', 'ready'] }
-    }).populate('items.foodId', 'name price categoryId image')
+    }).populate('items.foodId', 'name price categoryId image requireDoubleConfirmation')
       .populate('tableId', 'title tableNumber number')
       .populate('waiterId', 'firstName lastName')
       .sort({ createdAt: -1 });
@@ -539,7 +541,8 @@ const deleteItem = asyncHandler(async (req, res) => {
         .map(i => ({
           ...i.toObject(),
           kitchenStatus: i.status,
-          name: i.foodId?.name || i.foodName
+          name: i.foodId?.name || i.foodName,
+          requireDoubleConfirmation: i.foodId?.requireDoubleConfirmation || false
         }));
       return {
         _id: o._id,
@@ -602,7 +605,7 @@ const updateItemQuantity = asyncHandler(async (req, res) => {
   // Populate order data for proper response
   await order.populate('tableId', 'number floor title tableNumber');
   await order.populate('waiterId', 'firstName lastName phone');
-  await order.populate('items.foodId', 'name price image categoryId');
+  await order.populate('items.foodId', 'name price image categoryId requireDoubleConfirmation');
 
   emitOrderEvent(restaurantId.toString(), ORDER_EVENTS.UPDATED, {
     order,
@@ -618,7 +621,7 @@ const updateItemQuantity = asyncHandler(async (req, res) => {
       restaurantId,
       status: { $in: ['pending', 'approved', 'preparing', 'ready'] },
       'items.status': { $in: ['pending', 'preparing', 'ready'] }
-    }).populate('items.foodId', 'name price categoryId image')
+    }).populate('items.foodId', 'name price categoryId image requireDoubleConfirmation')
       .populate('tableId', 'title tableNumber number')
       .populate('waiterId', 'firstName lastName')
       .sort({ createdAt: -1 });
@@ -629,7 +632,8 @@ const updateItemQuantity = asyncHandler(async (req, res) => {
         .map(i => ({
           ...i.toObject(),
           kitchenStatus: i.status,
-          name: i.foodId?.name || i.foodName
+          name: i.foodId?.name || i.foodName,
+          requireDoubleConfirmation: i.foodId?.requireDoubleConfirmation || false
         }));
       return {
         _id: o._id,
@@ -879,7 +883,7 @@ const approveOrder = asyncHandler(async (req, res) => {
       restaurantId,
       status: { $in: ['pending', 'approved', 'preparing', 'ready'] },
       'items.status': { $in: ['pending', 'preparing', 'ready'] }
-    }).populate('items.foodId', 'name price categoryId image')
+    }).populate('items.foodId', 'name price categoryId image requireDoubleConfirmation')
       .populate('tableId', 'title tableNumber number')
       .populate('waiterId', 'firstName lastName')
       .sort({ createdAt: -1 });
@@ -891,7 +895,8 @@ const approveOrder = asyncHandler(async (req, res) => {
         .map(i => ({
           ...i.toObject(),
           kitchenStatus: i.status,
-          name: i.foodId?.name || i.foodName
+          name: i.foodId?.name || i.foodName,
+          requireDoubleConfirmation: i.foodId?.requireDoubleConfirmation || false
         }));
       return {
         _id: o._id,

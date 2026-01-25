@@ -25,7 +25,7 @@ exports.getOrders = async (req, res, next) => {
     })
       .populate('tableId', 'number floor title tableNumber')
       .populate('waiterId', 'firstName lastName')
-      .populate('items.foodId', 'name image preparationTime categoryId')
+      .populate('items.foodId', 'name image preparationTime categoryId requireDoubleConfirmation')
       .sort({ createdAt: 1 });
 
     // Transform to kitchen-friendly format (cook-web expects these field names)
@@ -36,7 +36,8 @@ exports.getOrders = async (req, res, next) => {
           ...item.toObject(),
           // cook-web uses kitchenStatus, backend uses status
           kitchenStatus: item.status,
-          name: item.foodId?.name || item.foodName
+          name: item.foodId?.name || item.foodName,
+          requireDoubleConfirmation: item.foodId?.requireDoubleConfirmation || false
         }));
 
       return {
@@ -74,7 +75,7 @@ exports.getOrder = async (req, res, next) => {
     const order = await Order.findOne({ _id: id, restaurantId })
       .populate('tableId', 'number floor')
       .populate('waiterId', 'firstName lastName')
-      .populate('items.foodId', 'name image preparationTime');
+      .populate('items.foodId', 'name image preparationTime requireDoubleConfirmation');
 
     if (!order) {
       return res.status(404).json({
@@ -171,14 +172,14 @@ exports.updateItemStatus = async (req, res, next) => {
     // Populate for response
     await order.populate('tableId', 'number floor title tableNumber');
     await order.populate('waiterId', 'firstName lastName');
-    await order.populate('items.foodId', 'name image categoryId');
+    await order.populate('items.foodId', 'name image categoryId requireDoubleConfirmation');
 
     // Get all kitchen orders for cook-web (including ready and served items)
     const rawKitchenOrders = await Order.find({
       restaurantId,
       status: { $in: ['pending', 'approved', 'preparing', 'ready', 'served'] },
       'items.status': { $in: ['pending', 'preparing', 'ready', 'served'] }
-    }).populate('items.foodId', 'name price categoryId image')
+    }).populate('items.foodId', 'name price categoryId image requireDoubleConfirmation')
       .populate('tableId', 'title tableNumber number')
       .populate('waiterId', 'firstName lastName')
       .sort({ createdAt: -1 });
@@ -190,7 +191,8 @@ exports.updateItemStatus = async (req, res, next) => {
         .map(i => ({
           ...i.toObject(),
           kitchenStatus: i.status,
-          name: i.foodId?.name || i.foodName
+          name: i.foodId?.name || i.foodName,
+          requireDoubleConfirmation: i.foodId?.requireDoubleConfirmation || false
         }));
       return {
         _id: o._id,
@@ -300,7 +302,7 @@ exports.startOrder = async (req, res, next) => {
 
     await order.save();
     await order.populate('tableId', 'number floor');
-    await order.populate('items.foodId', 'name image');
+    await order.populate('items.foodId', 'name image requireDoubleConfirmation');
 
     // Emit socket event
     socketService.emitToRestaurant(restaurantId, 'kitchen:order-started', {
@@ -344,7 +346,7 @@ exports.completeOrder = async (req, res, next) => {
     await order.save();
     await order.populate('tableId', 'number floor');
     await order.populate('waiterId', 'firstName lastName');
-    await order.populate('items.foodId', 'name image');
+    await order.populate('items.foodId', 'name image requireDoubleConfirmation');
 
     // Emit socket event
     socketService.emitToRestaurant(restaurantId, 'kitchen:order-completed', {
