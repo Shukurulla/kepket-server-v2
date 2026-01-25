@@ -257,23 +257,83 @@ exports.getRestaurant = async (req, res, next) => {
 // Restoran yaratish
 exports.createRestaurant = async (req, res, next) => {
   try {
-    const { name, address, phone, email, subscriptionPlan, subscriptionEndDate } = req.body;
+    const {
+      name,
+      address,
+      phone,
+      email,
+      subscriptionPlan,
+      subscriptionEndDate,
+      subscriptionMonths,
+      // Admin ma'lumotlari
+      adminFirstName,
+      adminLastName,
+      adminPhone,
+      adminPassword
+    } = req.body;
 
+    // Obuna muddatini hisoblash
+    let expiresAt = subscriptionEndDate;
+    if (!expiresAt && subscriptionMonths) {
+      expiresAt = new Date(Date.now() + subscriptionMonths * 30 * 24 * 60 * 60 * 1000);
+    } else if (!expiresAt) {
+      expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+    }
+
+    // Restoran yaratish
     const restaurant = new Restaurant({
       name,
       address,
       phone,
       email,
-      subscriptionPlan: subscriptionPlan || 'basic',
-      subscriptionEndDate: subscriptionEndDate || new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
-      isActive: true
+      subscription: {
+        status: 'active',
+        expiresAt,
+        plan: subscriptionPlan || 'basic'
+      }
     });
 
     await restaurant.save();
 
+    // Admin xodim yaratish (agar ma'lumotlar berilgan bo'lsa)
+    let admin = null;
+    if (adminPhone && adminPassword) {
+      // Telefon raqami mavjudligini tekshirish
+      const existingStaff = await Staff.findOne({ phone: adminPhone });
+      if (existingStaff) {
+        // Restoranni o'chirish (rollback)
+        await Restaurant.findByIdAndDelete(restaurant._id);
+        return res.status(400).json({
+          success: false,
+          message: 'Bu telefon raqam allaqachon ro\'yxatdan o\'tgan'
+        });
+      }
+
+      admin = new Staff({
+        restaurantId: restaurant._id,
+        firstName: adminFirstName || 'Admin',
+        lastName: adminLastName || '',
+        phone: adminPhone,
+        password: adminPassword,
+        role: 'admin',
+        status: 'working'
+      });
+
+      await admin.save();
+    }
+
     res.status(201).json({
       success: true,
-      data: restaurant
+      data: {
+        restaurant,
+        admin: admin ? {
+          _id: admin._id,
+          firstName: admin.firstName,
+          lastName: admin.lastName,
+          phone: admin.phone,
+          role: admin.role
+        } : null
+      }
     });
   } catch (error) {
     next(error);
