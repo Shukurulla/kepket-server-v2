@@ -341,6 +341,46 @@ const deleteOrder = asyncHandler(async (req, res) => {
 
   emitOrderEvent(restaurantId.toString(), ORDER_EVENTS.DELETED, { orderId: id });
 
+  // Cook uchun kitchen_orders_updated yuborish
+  try {
+    const rawKitchenOrders = await Order.find({
+      restaurantId,
+      status: { $in: ['pending', 'approved', 'preparing', 'ready'] },
+      'items.status': { $in: ['pending', 'preparing', 'ready'] }
+    }).populate('items.foodId', 'name price categoryId image')
+      .populate('tableId', 'title tableNumber number')
+      .populate('waiterId', 'firstName lastName')
+      .sort({ createdAt: -1 });
+
+    const kitchenOrders = rawKitchenOrders.map(o => {
+      const items = o.items
+        .filter(i => ['pending', 'preparing', 'ready'].includes(i.status) && !i.isDeleted)
+        .map(i => ({
+          ...i.toObject(),
+          kitchenStatus: i.status,
+          name: i.foodId?.name || i.foodName
+        }));
+      return {
+        _id: o._id,
+        orderId: o._id,
+        orderNumber: o.orderNumber,
+        tableId: o.tableId,
+        tableName: o.tableId?.title || o.tableName || `Stol ${o.tableId?.number || o.tableNumber || ''}`,
+        tableNumber: o.tableId?.number || o.tableNumber,
+        waiterId: o.waiterId,
+        waiterName: o.waiterId ? `${o.waiterId.firstName || ''} ${o.waiterId.lastName || ''}`.trim() : '',
+        items,
+        status: o.status,
+        createdAt: o.createdAt,
+        restaurantId: o.restaurantId
+      };
+    }).filter(o => o.items.length > 0);
+
+    socketService.emitToRole(restaurantId.toString(), 'cook', 'kitchen_orders_updated', kitchenOrders);
+  } catch (err) {
+    console.error('Error sending kitchen orders after delete:', err);
+  }
+
   res.json({
     success: true,
     message: 'Order o\'chirildi'
@@ -411,6 +451,11 @@ const deleteItem = asyncHandler(async (req, res) => {
   // Check if order was also deleted (no items left)
   const orderDeleted = order.isDeleted;
 
+  // Populate order data
+  await order.populate('tableId', 'number floor title tableNumber');
+  await order.populate('waiterId', 'firstName lastName phone');
+  await order.populate('items.foodId', 'name price image categoryId');
+
   if (orderDeleted) {
     // Free table
     if (order.tableId) {
@@ -428,14 +473,52 @@ const deleteItem = asyncHandler(async (req, res) => {
     });
   }
 
+  // Cook uchun kitchen_orders_updated yuborish
+  try {
+    const rawKitchenOrders = await Order.find({
+      restaurantId,
+      status: { $in: ['pending', 'approved', 'preparing', 'ready'] },
+      'items.status': { $in: ['pending', 'preparing', 'ready'] }
+    }).populate('items.foodId', 'name price categoryId image')
+      .populate('tableId', 'title tableNumber number')
+      .populate('waiterId', 'firstName lastName')
+      .sort({ createdAt: -1 });
+
+    const kitchenOrders = rawKitchenOrders.map(o => {
+      const items = o.items
+        .filter(i => ['pending', 'preparing', 'ready'].includes(i.status) && !i.isDeleted)
+        .map(i => ({
+          ...i.toObject(),
+          kitchenStatus: i.status,
+          name: i.foodId?.name || i.foodName
+        }));
+      return {
+        _id: o._id,
+        orderId: o._id,
+        orderNumber: o.orderNumber,
+        tableId: o.tableId,
+        tableName: o.tableId?.title || o.tableName || `Stol ${o.tableId?.number || o.tableNumber || ''}`,
+        tableNumber: o.tableId?.number || o.tableNumber,
+        waiterId: o.waiterId,
+        waiterName: o.waiterId ? `${o.waiterId.firstName || ''} ${o.waiterId.lastName || ''}`.trim() : '',
+        items,
+        status: o.status,
+        createdAt: o.createdAt,
+        restaurantId: o.restaurantId
+      };
+    }).filter(o => o.items.length > 0);
+
+    socketService.emitToRole(restaurantId.toString(), 'cook', 'kitchen_orders_updated', kitchenOrders);
+  } catch (err) {
+    console.error('Error sending kitchen orders after item delete:', err);
+  }
+
   res.json({
     success: true,
-    data: {
-      order,
-      orderDeleted,
-      remainingItems: order.activeItems.length,
-      newTotal: order.grandTotal
-    }
+    data: order,
+    orderDeleted,
+    remainingItems: order.activeItems.length,
+    newTotal: order.grandTotal
   });
 });
 
@@ -466,6 +549,11 @@ const updateItemQuantity = asyncHandler(async (req, res) => {
   order.updateItemQuantity(itemId, quantity);
   await order.save();
 
+  // Populate order data for proper response
+  await order.populate('tableId', 'number floor title tableNumber');
+  await order.populate('waiterId', 'firstName lastName phone');
+  await order.populate('items.foodId', 'name price image categoryId');
+
   emitOrderEvent(restaurantId.toString(), ORDER_EVENTS.UPDATED, {
     order,
     action: 'item_quantity_changed',
@@ -474,14 +562,52 @@ const updateItemQuantity = asyncHandler(async (req, res) => {
     newQuantity: quantity
   });
 
+  // Cook uchun kitchen_orders_updated yuborish
+  try {
+    const rawKitchenOrders = await Order.find({
+      restaurantId,
+      status: { $in: ['pending', 'approved', 'preparing', 'ready'] },
+      'items.status': { $in: ['pending', 'preparing', 'ready'] }
+    }).populate('items.foodId', 'name price categoryId image')
+      .populate('tableId', 'title tableNumber number')
+      .populate('waiterId', 'firstName lastName')
+      .sort({ createdAt: -1 });
+
+    const kitchenOrders = rawKitchenOrders.map(o => {
+      const items = o.items
+        .filter(i => ['pending', 'preparing', 'ready'].includes(i.status) && !i.isDeleted)
+        .map(i => ({
+          ...i.toObject(),
+          kitchenStatus: i.status,
+          name: i.foodId?.name || i.foodName
+        }));
+      return {
+        _id: o._id,
+        orderId: o._id,
+        orderNumber: o.orderNumber,
+        tableId: o.tableId,
+        tableName: o.tableId?.title || o.tableName || `Stol ${o.tableId?.number || o.tableNumber || ''}`,
+        tableNumber: o.tableId?.number || o.tableNumber,
+        waiterId: o.waiterId,
+        waiterName: o.waiterId ? `${o.waiterId.firstName || ''} ${o.waiterId.lastName || ''}`.trim() : '',
+        items,
+        status: o.status,
+        createdAt: o.createdAt,
+        restaurantId: o.restaurantId
+      };
+    }).filter(o => o.items.length > 0);
+
+    socketService.emitToRole(restaurantId.toString(), 'cook', 'kitchen_orders_updated', kitchenOrders);
+  } catch (err) {
+    console.error('Error sending kitchen orders:', err);
+  }
+
   res.json({
     success: true,
-    data: {
-      order,
-      oldQuantity,
-      newQuantity: quantity,
-      newTotal: order.grandTotal
-    }
+    data: order,
+    oldQuantity,
+    newQuantity: quantity,
+    newTotal: order.grandTotal
   });
 });
 
