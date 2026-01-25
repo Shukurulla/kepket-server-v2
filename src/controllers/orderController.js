@@ -127,7 +127,7 @@ const getOrder = asyncHandler(async (req, res) => {
 });
 
 /**
- * Create order
+ * Create order or add items to existing unpaid order
  * POST /api/orders
  */
 const createOrder = asyncHandler(async (req, res) => {
@@ -141,7 +141,8 @@ const createOrder = asyncHandler(async (req, res) => {
     waiterId,
     waiterName,
     comment,
-    surcharge = 0
+    surcharge = 0,
+    forceNewOrder = false // Yangi order yaratishni majburlash uchun
   } = req.body;
 
   // Validate items
@@ -149,54 +150,95 @@ const createOrder = asyncHandler(async (req, res) => {
     throw new AppError('Kamida bitta taom kerak', 400, 'VALIDATION_ERROR');
   }
 
-  // Get next order number
-  const orderNumber = await Order.getNextOrderNumber(restaurantId);
-
   // Prepare items with food details
   const orderItems = await Promise.all(items.map(async (item) => {
     const food = await Food.findById(item.foodId);
     return {
       foodId: item.foodId,
-      foodName: food ? food.foodName : item.foodName,
+      foodName: food ? food.foodName || food.name : item.foodName,
       categoryId: food ? food.categoryId : item.categoryId,
       quantity: item.quantity || 1,
       price: food ? food.price : item.price
     };
   }));
 
-  const order = new Order({
-    restaurantId,
-    orderNumber,
-    orderType,
-    tableId,
-    tableName,
-    tableNumber,
-    items: orderItems,
-    waiterId: waiterId || (role === 'waiter' ? userId : null),
-    waiterName: waiterName || (role === 'waiter' ? fullName : null),
-    waiterApproved: role === 'waiter' || role === 'admin',
-    approvedAt: role === 'waiter' || role === 'admin' ? new Date() : null,
-    source: role === 'admin' ? 'admin' : 'waiter',
-    comment,
-    surcharge
-  });
+  let order;
+  let isNewOrder = false;
 
-  await order.save();
-
-  // Populate for response
-  await order.populate('tableId', 'title tableNumber number');
-  await order.populate('waiterId', 'firstName lastName');
-
-  // Update table status
-  if (tableId) {
-    await Table.findByIdAndUpdate(tableId, {
-      status: 'occupied',
-      activeOrderId: order._id
+  // Agar tableId bo'lsa va forceNewOrder false bo'lsa, mavjud to'lanmagan orderni qidirish
+  if (tableId && !forceNewOrder && orderType === 'dine-in') {
+    // Shu stol uchun to'lanmagan order bor-yo'qligini tekshirish
+    const existingOrder = await Order.findOne({
+      restaurantId,
+      tableId,
+      isPaid: false,
+      status: { $nin: ['paid', 'cancelled'] }
     });
+
+    if (existingOrder) {
+      // Mavjud orderga itemlarni qo'shish
+      existingOrder.items.push(...orderItems);
+
+      // Agar yangi comment bo'lsa, qo'shish
+      if (comment) {
+        existingOrder.comment = existingOrder.comment
+          ? `${existingOrder.comment}\n${comment}`
+          : comment;
+      }
+
+      await existingOrder.save();
+      order = existingOrder;
+
+      // Populate for response
+      await order.populate('tableId', 'title tableNumber number');
+      await order.populate('waiterId', 'firstName lastName');
+    }
+  }
+
+  // Agar mavjud order topilmasa, yangi order yaratish
+  if (!order) {
+    isNewOrder = true;
+    const orderNumber = await Order.getNextOrderNumber(restaurantId);
+
+    order = new Order({
+      restaurantId,
+      orderNumber,
+      orderType,
+      tableId,
+      tableName,
+      tableNumber,
+      items: orderItems,
+      waiterId: waiterId || (role === 'waiter' ? userId : null),
+      waiterName: waiterName || (role === 'waiter' ? fullName : null),
+      waiterApproved: role === 'waiter' || role === 'admin',
+      approvedAt: role === 'waiter' || role === 'admin' ? new Date() : null,
+      source: role === 'admin' ? 'admin' : 'waiter',
+      comment,
+      surcharge
+    });
+
+    await order.save();
+
+    // Populate for response
+    await order.populate('tableId', 'title tableNumber number');
+    await order.populate('waiterId', 'firstName lastName');
+
+    // Update table status (faqat yangi order uchun)
+    if (tableId) {
+      await Table.findByIdAndUpdate(tableId, {
+        status: 'occupied',
+        activeOrderId: order._id
+      });
+    }
   }
 
   // Emit real-time event
-  emitOrderEvent(restaurantId.toString(), ORDER_EVENTS.CREATED, { order });
+  if (isNewOrder) {
+    emitOrderEvent(restaurantId.toString(), ORDER_EVENTS.CREATED, { order });
+  } else {
+    // Mavjud orderga item qo'shilganda
+    emitOrderEvent(restaurantId.toString(), ORDER_EVENTS.UPDATED, { order, itemsAdded: orderItems });
+  }
 
   // Cook uchun kitchen_orders_updated yuborish (including ready items)
   try {
@@ -237,8 +279,9 @@ const createOrder = asyncHandler(async (req, res) => {
     socketService.emitToRole(restaurantId.toString(), 'cook', 'new_kitchen_order', {
       order: order,
       allOrders: kitchenOrders,
-      isNewOrder: true,
-      newItems: order.items.map(i => ({ ...i.toObject(), kitchenStatus: i.status }))
+      isNewOrder: isNewOrder,
+      itemsAddedToExisting: !isNewOrder,
+      newItems: orderItems.map(i => ({ ...i, kitchenStatus: 'pending' }))
     });
     socketService.emitToRole(restaurantId.toString(), 'cook', 'kitchen_orders_updated', kitchenOrders);
     socketService.emitToRole(restaurantId.toString(), 'admin', 'kitchen_orders_updated', kitchenOrders);
@@ -278,7 +321,11 @@ const createOrder = asyncHandler(async (req, res) => {
 
   res.status(201).json({
     success: true,
-    data: order
+    data: order,
+    isNewOrder: isNewOrder,
+    message: isNewOrder
+      ? 'Yangi buyurtma yaratildi'
+      : 'Taomlar mavjud buyurtmaga qo\'shildi'
   });
 });
 
