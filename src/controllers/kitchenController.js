@@ -224,31 +224,36 @@ exports.updateItemStatus = async (req, res, next) => {
     if (item.status === 'ready' && order.waiterId) {
       const foodName = item.foodId?.name || item.foodName || 'Taom';
       const tableNumber = order.tableId?.number || order.tableId?.tableNumber || order.tableNumber;
+      const tableName = order.tableId?.title || order.tableName || `Stol ${tableNumber}`;
 
-      // Create notification
-      await Notification.create({
+      // Create notification and get its ID
+      const notification = await Notification.create({
         restaurantId,
         staffId: order.waiterId._id,
         type: 'item_ready',
         title: 'Taom tayyor!',
-        message: `${foodName} tayyor - Stol ${tableNumber}`,
+        message: `${foodName} tayyor - ${tableName}`,
         orderId: order._id,
         tableId: order.tableId?._id || order.tableId,
         priority: 'high'
       });
 
-      // Emit to waiter - Flutter format
-      socketService.emitToUser(order.waiterId._id.toString(), 'order_ready', {
-        orderId,
-        order,
-        tableName: order.tableId?.title || `Stol ${tableNumber}`,
+      // Emit to waiter - Flutter format (order_ready_notification - Flutter shu eventni kutadi)
+      socketService.emitToUser(order.waiterId._id.toString(), 'order_ready_notification', {
+        notificationId: notification._id.toString(),
+        orderId: order._id.toString(),
+        tableName,
         tableNumber,
-        message: `${foodName} tayyor!`
+        message: `${foodName} tayyor!`,
+        items: [{
+          foodName: foodName,
+          quantity: item.quantity
+        }]
       });
 
       // Legacy format
       socketService.emitToUser(order.waiterId._id.toString(), 'notification:food-ready', {
-        orderId,
+        orderId: order._id.toString(),
         itemId: item._id,
         foodName,
         tableNumber

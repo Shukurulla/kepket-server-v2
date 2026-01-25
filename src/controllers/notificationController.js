@@ -5,22 +5,28 @@ const socketService = require('../services/socketService');
 exports.getMyNotifications = async (req, res, next) => {
   try {
     const { restaurantId, id: userId, role } = req.user;
-    const { unreadOnly, limit = 50, skip = 0 } = req.query;
+    const { unreadOnly, limit = 50, skip = 0, recipientId, status } = req.query;
+
+    // Flutter compatibility: recipientId yoki userId
+    const targetStaffId = recipientId || userId;
 
     const filter = {
       restaurantId,
-      $or: [
-        { targetUserId: userId },
-        { targetRole: role },
-        { targetRole: 'all' }
-      ]
+      staffId: targetStaffId
     };
 
-    if (unreadOnly === 'true') {
+    // Flutter status: pending -> isRead: false, completed -> isRead: true
+    if (status === 'pending') {
+      filter.isRead = false;
+    } else if (status === 'completed') {
+      filter.isRead = true;
+    } else if (unreadOnly === 'true') {
       filter.isRead = false;
     }
 
     const notifications = await Notification.find(filter)
+      .populate('orderId', 'orderNumber tableNumber tableName items')
+      .populate('tableId', 'title number tableNumber')
       .sort({ createdAt: -1 })
       .limit(parseInt(limit))
       .skip(parseInt(skip));
@@ -31,10 +37,33 @@ exports.getMyNotifications = async (req, res, next) => {
       isRead: false
     });
 
+    // Flutter format: tableName, tableNumber, items
+    const formattedNotifications = notifications.map(n => {
+      const order = n.orderId;
+      return {
+        _id: n._id,
+        id: n._id,
+        type: n.type,
+        title: n.title,
+        message: n.message,
+        tableName: n.tableId?.title || order?.tableName || `Stol ${n.tableId?.number || order?.tableNumber || ''}`,
+        tableNumber: n.tableId?.number || order?.tableNumber || 0,
+        orderId: order?._id?.toString() || n.orderId?.toString(),
+        items: (order?.items || n.items || []).filter(i => !i.isDeleted).map(i => ({
+          foodName: i.foodName || i.foodId?.name || 'Taom',
+          quantity: i.quantity || 1
+        })),
+        isRead: n.isRead,
+        isCompleted: n.isCompleted,
+        createdAt: n.createdAt,
+        completedAt: n.isRead ? n.readAt : null
+      };
+    });
+
     res.json({
       success: true,
       data: {
-        notifications,
+        notifications: formattedNotifications,
         total,
         unreadCount
       }
@@ -47,16 +76,12 @@ exports.getMyNotifications = async (req, res, next) => {
 // Get unread count
 exports.getUnreadCount = async (req, res, next) => {
   try {
-    const { restaurantId, id: userId, role } = req.user;
+    const { restaurantId, id: userId } = req.user;
 
     const count = await Notification.countDocuments({
       restaurantId,
-      isRead: false,
-      $or: [
-        { targetUserId: userId },
-        { targetRole: role },
-        { targetRole: 'all' }
-      ]
+      staffId: userId,
+      isRead: false
     });
 
     res.json({
@@ -103,22 +128,17 @@ exports.markAsRead = async (req, res, next) => {
 // Mark all as read
 exports.markAllAsRead = async (req, res, next) => {
   try {
-    const { restaurantId, id: userId, role } = req.user;
+    const { restaurantId, id: userId } = req.user;
 
     await Notification.updateMany(
       {
         restaurantId,
-        isRead: false,
-        $or: [
-          { targetUserId: userId },
-          { targetRole: role },
-          { targetRole: 'all' }
-        ]
+        staffId: userId,
+        isRead: false
       },
       {
         isRead: true,
-        readAt: new Date(),
-        readBy: userId
+        readAt: new Date()
       }
     );
 
@@ -311,19 +331,15 @@ exports.updateSettings = async (req, res, next) => {
 // GET /notifications/count?recipientId=xxx&status=pending
 exports.getCount = async (req, res, next) => {
   try {
-    const { restaurantId, id: userId, role } = req.user;
+    const { restaurantId, id: userId } = req.user;
     const { recipientId, status } = req.query;
 
     // recipientId berilgan bo'lsa, shu user uchun, aks holda authenticated user uchun
-    const targetUserId = recipientId || userId;
+    const targetStaffId = recipientId || userId;
 
     const filter = {
       restaurantId,
-      $or: [
-        { targetUserId: targetUserId },
-        { targetRole: role },
-        { targetRole: 'all' }
-      ]
+      staffId: targetStaffId
     };
 
     // status=pending -> isRead: false
