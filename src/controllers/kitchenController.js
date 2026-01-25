@@ -8,14 +8,14 @@ exports.getOrders = async (req, res, next) => {
     const { status } = req.query;
 
     // Find orders with items that need kitchen attention
-    // status = 'pending', 'preparing', 'ready', yoki undefined (hammasi)
+    // status = 'pending', 'preparing', 'ready', 'served' yoki undefined (hammasi)
     const kitchenStatuses = status
       ? [status]
-      : ['pending', 'preparing', 'ready'];  // Default: hammasi (pending, preparing, ready)
+      : ['pending', 'preparing', 'ready', 'served'];  // Default: hammasi (pending, preparing, ready, served)
 
-    // Order status filter - ready items need broader order statuses
-    const orderStatuses = (status === 'ready' || !status)
-      ? ['pending', 'approved', 'preparing', 'ready']
+    // Order status filter - ready/served items need broader order statuses
+    const orderStatuses = (status === 'ready' || status === 'served' || !status)
+      ? ['pending', 'approved', 'preparing', 'ready', 'served']
       : ['pending', 'approved', 'preparing'];
 
     const orders = await Order.find({

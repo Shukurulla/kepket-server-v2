@@ -358,12 +358,12 @@ class SocketService {
         action: 'served'
       });
 
-      // Cook uchun kitchen_orders_updated yuborish (served itemlar yo'qoladi)
+      // Cook uchun kitchen_orders_updated yuborish (served itemlar ham qoladi - cook ko'rishi uchun)
       try {
         const rawKitchenOrders = await Order.find({
           restaurantId,
-          status: { $in: ['pending', 'approved', 'preparing', 'ready'] },
-          'items.status': { $in: ['pending', 'preparing', 'ready'] }
+          status: { $in: ['pending', 'approved', 'preparing', 'ready', 'served'] },
+          'items.status': { $in: ['pending', 'preparing', 'ready', 'served'] }
         }).populate('items.foodId', 'name price categoryId image')
           .populate('tableId', 'title tableNumber number')
           .populate('waiterId', 'firstName lastName')
@@ -371,7 +371,7 @@ class SocketService {
 
         const kitchenOrders = rawKitchenOrders.map(o => {
           const items = o.items
-            .filter(i => ['pending', 'preparing', 'ready'].includes(i.status))
+            .filter(i => ['pending', 'preparing', 'ready', 'served'].includes(i.status))
             .map(i => ({
               ...i.toObject(),
               kitchenStatus: i.status,
