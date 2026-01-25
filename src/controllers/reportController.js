@@ -57,10 +57,10 @@ exports.getDashboard = async (req, res, next) => {
 
     // Calculate metrics
     const totalOrders = orders.length;
-    const completedOrders = orders.filter(o => o.status === 'completed').length;
+    const completedOrders = orders.filter(o => o.isPaid === true).length;
     const totalRevenue = orders
-      .filter(o => o.paymentStatus === 'paid')
-      .reduce((sum, o) => sum + (o.finalTotal || o.total), 0);
+      .filter(o => o.isPaid === true)
+      .reduce((sum, o) => sum + (o.grandTotal || o.subtotal || 0), 0);
 
     const totalItems = orders.reduce((sum, o) => sum + o.items.length, 0);
 
@@ -171,14 +171,14 @@ exports.getSalesReport = async (req, res, next) => {
           restaurantId: new mongoose.Types.ObjectId(restaurantId),
           createdAt: { $gte: start, $lte: end },
           status: { $ne: 'cancelled' },
-          paymentStatus: 'paid'
+          isPaid: true
         }
       },
       {
         $group: {
           _id: dateFormat,
           totalOrders: { $sum: 1 },
-          totalRevenue: { $sum: '$finalTotal' },
+          totalRevenue: { $sum: '$grandTotal' },
           totalItems: { $sum: { $size: '$items' } }
         }
       },
@@ -319,9 +319,9 @@ exports.getStaffReport = async (req, res, next) => {
         $group: {
           _id: '$waiterId',
           totalOrders: { $sum: 1 },
-          totalRevenue: { $sum: '$finalTotal' },
+          totalRevenue: { $sum: '$grandTotal' },
           completedOrders: {
-            $sum: { $cond: [{ $eq: ['$status', 'completed'] }, 1, 0] }
+            $sum: { $cond: [{ $eq: ['$isPaid', true] }, 1, 0] }
           }
         }
       },
@@ -392,15 +392,14 @@ exports.getPaymentReport = async (req, res, next) => {
         $match: {
           restaurantId: new mongoose.Types.ObjectId(restaurantId),
           createdAt: { $gte: start, $lte: end },
-          status: 'completed',
-          paymentStatus: 'paid'
+          isPaid: true
         }
       },
       {
         $group: {
-          _id: '$paymentMethod',
+          _id: '$paymentType',
           count: { $sum: 1 },
-          total: { $sum: '$finalTotal' }
+          total: { $sum: '$grandTotal' }
         }
       },
       { $sort: { total: -1 } }
@@ -453,7 +452,7 @@ exports.getHourlyAnalysis = async (req, res, next) => {
         $group: {
           _id: { $hour: '$createdAt' },
           orderCount: { $sum: 1 },
-          revenue: { $sum: '$finalTotal' }
+          revenue: { $sum: '$grandTotal' }
         }
       },
       { $sort: { _id: 1 } }
