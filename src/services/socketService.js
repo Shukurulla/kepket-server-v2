@@ -266,7 +266,31 @@ class SocketService {
 
       // Also emit legacy events for backward compatibility
       this.emitToRestaurant(data.restaurantId, 'new_order', { order });
-      this.emitToRole(data.restaurantId, 'cook', 'kitchen_orders_updated', { order });
+
+      // Cook uchun barcha kitchen orderlarni yuborish
+      try {
+        const kitchenOrders = await Order.find({
+          restaurantId: data.restaurantId,
+          status: { $in: ['pending', 'preparing', 'approved'] },
+          'items.kitchenStatus': { $in: ['pending', 'preparing'] }
+        }).populate('items.foodId', 'name price categoryId image')
+          .populate('tableId', 'title tableNumber')
+          .populate('waiterId', 'firstName lastName')
+          .sort({ createdAt: -1 });
+
+        // new_kitchen_order event - cook-web kutgan format
+        this.emitToRole(data.restaurantId, 'cook', 'new_kitchen_order', {
+          order: order,
+          allOrders: kitchenOrders,
+          isNewOrder: true,
+          newItems: order.items
+        });
+
+        // kitchen_orders_updated ham yuborish (backward compatibility)
+        this.emitToRole(data.restaurantId, 'cook', 'kitchen_orders_updated', kitchenOrders);
+      } catch (err) {
+        console.error('Error fetching kitchen orders for cook:', err);
+      }
 
       socket.emit('post_order_success', { order });
 
