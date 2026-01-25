@@ -304,3 +304,113 @@ exports.updateSettings = async (req, res, next) => {
     next(error);
   }
 };
+
+// ==================== FLUTTER COMPATIBILITY ====================
+
+// Get count (Flutter waiter app uchun)
+// GET /notifications/count?recipientId=xxx&status=pending
+exports.getCount = async (req, res, next) => {
+  try {
+    const { restaurantId, id: userId, role } = req.user;
+    const { recipientId, status } = req.query;
+
+    // recipientId berilgan bo'lsa, shu user uchun, aks holda authenticated user uchun
+    const targetUserId = recipientId || userId;
+
+    const filter = {
+      restaurantId,
+      $or: [
+        { targetUserId: targetUserId },
+        { targetRole: role },
+        { targetRole: 'all' }
+      ]
+    };
+
+    // status=pending -> isRead: false
+    // status=completed -> isRead: true
+    if (status === 'pending') {
+      filter.isRead = false;
+    } else if (status === 'completed') {
+      filter.isRead = true;
+    }
+
+    const count = await Notification.countDocuments(filter);
+
+    res.json({
+      success: true,
+      count,
+      data: { count }
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// Update notification (Flutter waiter app uchun)
+// PATCH /notifications/:id
+exports.updateNotification = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const { id: userId } = req.user;
+    const { status } = req.body;
+
+    const updateData = {};
+
+    // status=completed -> isRead: true
+    if (status === 'completed') {
+      updateData.isRead = true;
+      updateData.readAt = new Date();
+      updateData.readBy = userId;
+    }
+
+    const notification = await Notification.findByIdAndUpdate(
+      id,
+      updateData,
+      { new: true }
+    );
+
+    if (!notification) {
+      return res.status(404).json({
+        success: false,
+        message: 'Notification not found'
+      });
+    }
+
+    res.json({
+      success: true,
+      data: notification
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// Complete order notifications (Flutter waiter app uchun)
+// PATCH /notifications/order/:orderId/complete
+exports.completeOrderNotifications = async (req, res, next) => {
+  try {
+    const { orderId } = req.params;
+    const { id: userId } = req.user;
+
+    // orderId bilan bog'liq barcha notificationlarni completed qilish
+    const result = await Notification.updateMany(
+      {
+        'data.orderId': orderId,
+        isRead: false
+      },
+      {
+        isRead: true,
+        readAt: new Date(),
+        readBy: userId
+      }
+    );
+
+    res.json({
+      success: true,
+      message: `${result.modifiedCount} notifications completed`,
+      modifiedCount: result.modifiedCount
+    });
+  } catch (error) {
+    next(error);
+  }
+};

@@ -13,17 +13,28 @@ router.get('/', notificationController.getMyNotifications);
 // Get unread count
 router.get('/unread-count', notificationController.getUnreadCount);
 
+// Get count (Flutter compatibility) - /notifications/count?recipientId=xxx&status=pending
+router.get('/count', notificationController.getCount);
+
 // Get notification settings
 router.get('/settings', notificationController.getSettings);
 
 // Update notification settings
 router.put('/settings', notificationController.updateSettings);
 
-// Mark notification as read
-router.patch('/:id/read', notificationController.markAsRead);
-
 // Mark all as read
 router.post('/mark-all-read', notificationController.markAllAsRead);
+
+// Complete order notifications (Flutter compatibility) - PATCH /notifications/order/:orderId/complete
+// MUHIM: Bu /:id dan OLDIN bo'lishi kerak!
+router.patch('/order/:orderId/complete', notificationController.completeOrderNotifications);
+
+// Mark notification as read - PATCH /notifications/:id/read
+// MUHIM: Bu /:id dan OLDIN bo'lishi kerak!
+router.patch('/:id/read', notificationController.markAsRead);
+
+// Update notification (Flutter compatibility) - PATCH /notifications/:id
+router.patch('/:id', notificationController.updateNotification);
 
 // Create notification (admin only)
 router.post('/', requireRole('admin'), notificationController.create);
