@@ -228,20 +228,13 @@ const createOrder = asyncHandler(async (req, res) => {
     try {
       await Notification.create({
         restaurantId,
+        staffId: order.waiterId,
         type: 'new_order',
         title: 'Yangi buyurtma!',
         message: `${tableTitle} - yangi buyurtma tasdiqlang`,
-        targetRole: 'waiter',
-        recipientId: order.waiterId,
-        targetUserId: order.waiterId,
         orderId: order._id,
         tableId: order.tableId?._id || tableId,
-        tableName: tableTitle,
-        status: 'pending',
-        data: {
-          orderId: order._id,
-          tableNumber: order.tableNumber
-        }
+        priority: 'high'
       });
     } catch (err) {
       console.error('Error creating notification:', err);

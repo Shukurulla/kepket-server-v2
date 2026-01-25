@@ -186,21 +186,13 @@ exports.updateItemStatus = async (req, res, next) => {
       // Create notification
       await Notification.create({
         restaurantId,
-        type: 'food_ready',
+        staffId: order.waiterId._id,
+        type: 'item_ready',
         title: 'Taom tayyor!',
         message: `${foodName} tayyor - Stol ${tableNumber}`,
-        targetRole: 'waiter',
-        recipientId: order.waiterId._id,
-        targetUserId: order.waiterId._id,
         orderId: order._id,
         tableId: order.tableId?._id || order.tableId,
-        tableName: order.tableId?.title || `Stol ${tableNumber}`,
-        status: 'pending',
-        data: {
-          orderId,
-          itemId: item._id,
-          tableNumber
-        }
+        priority: 'high'
       });
 
       // Emit to waiter - Flutter format
@@ -313,20 +305,18 @@ exports.completeOrder = async (req, res, next) => {
     if (order.waiterId) {
       await Notification.create({
         restaurantId,
+        staffId: order.waiterId._id,
         type: 'order_ready',
         title: 'Buyurtma tayyor!',
-        message: `Stol ${order.tableId.number} buyurtmasi tayyor`,
-        targetRole: 'waiter',
-        targetUserId: order.waiterId._id,
-        data: {
-          orderId,
-          tableNumber: order.tableId.number
-        }
+        message: `Stol ${order.tableId?.number || order.tableNumber} buyurtmasi tayyor`,
+        orderId: order._id,
+        tableId: order.tableId?._id || order.tableId,
+        priority: 'high'
       });
 
       socketService.emitToUser(order.waiterId._id.toString(), 'notification:order-ready', {
         orderId,
-        tableNumber: order.tableId.number
+        tableNumber: order.tableId?.number || order.tableNumber
       });
     }
 
@@ -433,21 +423,19 @@ exports.callWaiter = async (req, res, next) => {
     // Create notification
     await Notification.create({
       restaurantId,
-      type: 'waiter_call',
+      staffId: order.waiterId._id,
+      type: 'waiter_called',
       title: 'Oshxonadan chaqiruv',
-      message: message || `Stol ${order.tableId.number} - Oshxona sizni chaqirmoqda`,
-      targetRole: 'waiter',
-      targetUserId: order.waiterId._id,
-      data: {
-        orderId,
-        tableNumber: order.tableId.number
-      }
+      message: message || `Stol ${order.tableId?.number || order.tableNumber} - Oshxona sizni chaqirmoqda`,
+      orderId: order._id,
+      tableId: order.tableId?._id || order.tableId,
+      priority: 'urgent'
     });
 
     // Emit to waiter
     socketService.emitToUser(order.waiterId._id.toString(), 'notification:kitchen-call', {
       orderId,
-      tableNumber: order.tableId.number,
+      tableNumber: order.tableId?.number || order.tableNumber,
       message
     });
 
