@@ -8,12 +8,13 @@ exports.getOrders = async (req, res, next) => {
     const { status } = req.query;
 
     // Find orders with items that need kitchen attention
+    // status = 'pending', 'preparing', 'ready', yoki undefined (hammasi)
     const kitchenStatuses = status
       ? [status]
-      : ['pending', 'preparing'];
+      : ['pending', 'preparing', 'ready'];  // Default: hammasi (pending, preparing, ready)
 
     // Order status filter - ready items need broader order statuses
-    const orderStatuses = status === 'ready'
+    const orderStatuses = (status === 'ready' || !status)
       ? ['pending', 'approved', 'preparing', 'ready']
       : ['pending', 'approved', 'preparing'];
 
@@ -172,11 +173,11 @@ exports.updateItemStatus = async (req, res, next) => {
     await order.populate('waiterId', 'firstName lastName');
     await order.populate('items.foodId', 'name image categoryId');
 
-    // Get all kitchen orders for cook-web
+    // Get all kitchen orders for cook-web (including ready items)
     const rawKitchenOrders = await Order.find({
       restaurantId,
-      status: { $in: ['pending', 'approved', 'preparing'] },
-      'items.status': { $in: ['pending', 'preparing'] }
+      status: { $in: ['pending', 'approved', 'preparing', 'ready'] },
+      'items.status': { $in: ['pending', 'preparing', 'ready'] }
     }).populate('items.foodId', 'name price categoryId image')
       .populate('tableId', 'title tableNumber number')
       .populate('waiterId', 'firstName lastName')
@@ -185,7 +186,7 @@ exports.updateItemStatus = async (req, res, next) => {
     // Transform for cook-web format
     const kitchenOrders = rawKitchenOrders.map(o => {
       const items = o.items
-        .filter(i => ['pending', 'preparing'].includes(i.status))
+        .filter(i => ['pending', 'preparing', 'ready'].includes(i.status))
         .map(i => ({
           ...i.toObject(),
           kitchenStatus: i.status,
