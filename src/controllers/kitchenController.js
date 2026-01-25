@@ -4,8 +4,13 @@ const socketService = require('../services/socketService');
 // Get kitchen orders (items that need to be prepared)
 exports.getOrders = async (req, res, next) => {
   try {
-    const { restaurantId } = req.user;
+    const { restaurantId, id: cookId } = req.user;
     const { status } = req.query;
+
+    // Oshpazning assignedCategories ni olish
+    const cook = await Staff.findById(cookId).select('assignedCategories role');
+    const cookCategories = cook?.assignedCategories || [];
+    const hasCategoryFilter = cook?.role === 'cook' && cookCategories.length > 0;
 
     // Find orders with items that need kitchen attention
     // status = 'pending', 'preparing', 'ready', 'served' yoki undefined (hammasi)
@@ -31,7 +36,19 @@ exports.getOrders = async (req, res, next) => {
     // Transform to kitchen-friendly format (cook-web expects these field names)
     const kitchenOrders = orders.map(order => {
       const pendingItems = order.items
-        .filter(item => kitchenStatuses.includes(item.status))
+        .filter(item => {
+          // Status filter
+          if (!kitchenStatuses.includes(item.status)) return false;
+
+          // Category filter - faqat oshpazga biriktirilgan kategoriyalar
+          if (hasCategoryFilter) {
+            const itemCategoryId = item.foodId?.categoryId?.toString();
+            if (!itemCategoryId) return false;
+            return cookCategories.some(catId => catId.toString() === itemCategoryId);
+          }
+
+          return true;
+        })
         .map(item => ({
           ...item.toObject(),
           // cook-web uses kitchenStatus, backend uses status
@@ -220,10 +237,8 @@ exports.updateItemStatus = async (req, res, next) => {
       order
     });
 
-    // cook-web uchun kitchen_orders_updated yuborish
-    socketService.emitToRole(restaurantId, 'cook', 'kitchen_orders_updated', kitchenOrders);
-    // Admin uchun ham
-    socketService.emitToRole(restaurantId, 'admin', 'kitchen_orders_updated', kitchenOrders);
+    // cook-web uchun kitchen_orders_updated yuborish (har bir cook uchun filter qilingan)
+    await socketService.emitFilteredKitchenOrders(restaurantId, kitchenOrders, 'kitchen_orders_updated');
 
     // If item is ready OR partial ready, notify waiter
     const itemReadyQty = item.readyQuantity || 0;

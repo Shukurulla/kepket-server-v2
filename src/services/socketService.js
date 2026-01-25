@@ -370,10 +370,8 @@ class SocketService {
           newItems: order.items.map(i => ({ ...i.toObject(), kitchenStatus: i.status }))
         });
 
-        // kitchen_orders_updated ham yuborish (backward compatibility)
-        this.emitToRole(data.restaurantId, 'cook', 'kitchen_orders_updated', kitchenOrders);
-        // Admin uchun ham
-        this.emitToRole(data.restaurantId, 'admin', 'kitchen_orders_updated', kitchenOrders);
+        // kitchen_orders_updated ham yuborish (har bir cook uchun filter qilingan)
+        await this.emitFilteredKitchenOrders(data.restaurantId, kitchenOrders, 'kitchen_orders_updated');
       } catch (err) {
         console.error('Error fetching kitchen orders for cook:', err);
       }
@@ -454,9 +452,8 @@ class SocketService {
           };
         }).filter(o => o.items.length > 0);
 
-        this.emitToRole(restaurantId.toString(), 'cook', 'kitchen_orders_updated', kitchenOrders);
-        // Admin uchun ham yuborish
-        this.emitToRole(restaurantId.toString(), 'admin', 'kitchen_orders_updated', kitchenOrders);
+        // Har bir cook uchun filter qilingan
+        await this.emitFilteredKitchenOrders(restaurantId.toString(), kitchenOrders, 'kitchen_orders_updated');
       } catch (err) {
         console.error('Error sending kitchen orders after serve:', err);
       }
@@ -658,6 +655,55 @@ class SocketService {
   getOnlineUsersInRestaurant(restaurantId) {
     const room = this.io.sockets.adapter.rooms.get(`restaurant:${restaurantId}`);
     return room ? room.size : 0;
+  }
+
+  /**
+   * Emit filtered kitchen orders to each cook based on their assignedCategories
+   * Admin gets all orders, cooks get filtered by their categories
+   */
+  async emitFilteredKitchenOrders(restaurantId, kitchenOrders, event = 'kitchen_orders_updated') {
+    if (!this.io) return;
+
+    // Admin uchun - barcha orderlar
+    this.emitToRole(restaurantId, 'admin', event, kitchenOrders);
+
+    // Har bir cook uchun filter qilingan orderlar
+    try {
+      const cooks = await Staff.find({
+        restaurantId,
+        role: 'cook',
+        status: 'working',
+        isOnline: true
+      }).select('_id assignedCategories');
+
+      for (const cook of cooks) {
+        const cookCategories = cook.assignedCategories || [];
+        const hasCategoryFilter = cookCategories.length > 0;
+
+        let filteredOrders;
+        if (hasCategoryFilter) {
+          // Filter orders - faqat oshpazga biriktirilgan kategoriyalar
+          filteredOrders = kitchenOrders.map(order => {
+            const filteredItems = order.items.filter(item => {
+              const itemCategoryId = item.foodId?.categoryId?.toString() || item.categoryId?.toString();
+              if (!itemCategoryId) return false;
+              return cookCategories.some(catId => catId.toString() === itemCategoryId);
+            });
+            return { ...order, items: filteredItems };
+          }).filter(order => order.items.length > 0);
+        } else {
+          // Agar kategoriya biriktirilmagan bo'lsa - barcha orderlar
+          filteredOrders = kitchenOrders;
+        }
+
+        // Faqat shu oshpazga yuborish
+        this.emitToUser(cook._id.toString(), event, filteredOrders);
+      }
+    } catch (err) {
+      console.error('Error emitting filtered kitchen orders:', err);
+      // Fallback - barcha cook'larga yuborish
+      this.emitToRole(restaurantId, 'cook', event, kitchenOrders);
+    }
   }
 }
 

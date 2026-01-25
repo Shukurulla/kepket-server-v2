@@ -80,7 +80,10 @@ const login = asyncHandler(async (req, res) => {
         lastName: user.lastName,
         phone: user.phone,
         role: user.role,
-        restaurantId: user.restaurantId
+        restaurantId: user.restaurantId,
+        assignedCategories: user.assignedCategories || [],
+        doubleConfirmation: user.doubleConfirmation || false,
+        autoReady: user.autoReady || false
       },
       restaurant: {
         _id: restaurant._id,
