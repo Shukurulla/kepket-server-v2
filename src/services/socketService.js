@@ -31,9 +31,14 @@ class SocketService {
   /**
    * Handle new connection
    */
-  handleConnection(socket) {
+  async handleConnection(socket) {
     if (config.ENABLE_SOCKET_LOGGING) {
       console.log('Socket connected:', socket.id);
+    }
+
+    // Auto-authenticate if token provided in handshake auth
+    if (socket.handshake.auth && socket.handshake.auth.token) {
+      await this.handleAuthenticate(socket, { token: socket.handshake.auth.token });
     }
 
     // Authentication
@@ -44,6 +49,10 @@ class SocketService {
     // Legacy events (backward compatibility)
     socket.on('waiter_connect', async (data) => {
       await this.handleWaiterConnect(socket, data);
+    });
+
+    socket.on('cook_connect', async (data) => {
+      await this.handleCookConnect(socket, data);
     });
 
     socket.on('join_restaurant', async (data) => {
@@ -161,6 +170,39 @@ class SocketService {
       restaurantId,
       message: 'Connected successfully'
     });
+  }
+
+  /**
+   * Handle cook_connect
+   */
+  async handleCookConnect(socket, data) {
+    const { cookId, restaurantId } = data;
+
+    socket.userId = cookId;
+    socket.restaurantId = restaurantId;
+    socket.role = 'cook';
+
+    socket.join(`restaurant:${restaurantId}`);
+    socket.join(`cook:${restaurantId}`);
+    socket.join(`user:${cookId}`);
+
+    this.connectedUsers.set(cookId, socket.id);
+
+    await Staff.findByIdAndUpdate(cookId, {
+      isOnline: true,
+      socketId: socket.id,
+      lastSeenAt: new Date()
+    });
+
+    socket.emit('connection_established', {
+      cookId,
+      restaurantId,
+      message: 'Cook connected successfully'
+    });
+
+    if (config.ENABLE_SOCKET_LOGGING) {
+      console.log(`Cook connected: ${cookId} to restaurant ${restaurantId}`);
+    }
   }
 
   /**
