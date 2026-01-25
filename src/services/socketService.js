@@ -468,10 +468,9 @@ class SocketService {
   emitToRestaurant(restaurantId, event, data) {
     if (!this.io) return;
 
-    this.io.to(`restaurant:${restaurantId}`).emit(event, {
-      ...data,
-      timestamp: Date.now()
-    });
+    // Array bo'lsa to'g'ridan-to'g'ri yuborish, object bo'lsa timestamp qo'shish
+    const payload = Array.isArray(data) ? data : { ...data, timestamp: Date.now() };
+    this.io.to(`restaurant:${restaurantId}`).emit(event, payload);
 
     if (config.ENABLE_SOCKET_LOGGING) {
       console.log(`[EMIT] ${event} -> restaurant:${restaurantId}`);
@@ -484,10 +483,9 @@ class SocketService {
   emitToRole(restaurantId, role, event, data) {
     if (!this.io) return;
 
-    this.io.to(`${role}:${restaurantId}`).emit(event, {
-      ...data,
-      timestamp: Date.now()
-    });
+    // Array bo'lsa to'g'ridan-to'g'ri yuborish, object bo'lsa timestamp qo'shish
+    const payload = Array.isArray(data) ? data : { ...data, timestamp: Date.now() };
+    this.io.to(`${role}:${restaurantId}`).emit(event, payload);
 
     if (config.ENABLE_SOCKET_LOGGING) {
       console.log(`[EMIT] ${event} -> ${role}:${restaurantId}`);
@@ -500,10 +498,9 @@ class SocketService {
   emitToUser(userId, event, data) {
     if (!this.io) return;
 
-    this.io.to(`user:${userId}`).emit(event, {
-      ...data,
-      timestamp: Date.now()
-    });
+    // Array bo'lsa to'g'ridan-to'g'ri yuborish, object bo'lsa timestamp qo'shish
+    const payload = Array.isArray(data) ? data : { ...data, timestamp: Date.now() };
+    this.io.to(`user:${userId}`).emit(event, payload);
 
     if (config.ENABLE_SOCKET_LOGGING) {
       console.log(`[EMIT] ${event} -> user:${userId}`);
