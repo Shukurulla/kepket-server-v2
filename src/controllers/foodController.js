@@ -411,3 +411,147 @@ exports.getMenu = async (req, res, next) => {
     next(error);
   }
 };
+
+// === TZ 1.3, 2.2: Stop-list boshqaruvi ===
+
+// Get stop-list
+exports.getStopList = async (req, res, next) => {
+  try {
+    const { restaurantId } = req.user;
+
+    const stopListItems = await Food.getStopList(restaurantId);
+
+    res.json({
+      success: true,
+      data: stopListItems,
+      count: stopListItems.length
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// Add food to stop-list
+exports.addToStopList = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const { reason } = req.body;
+    const { restaurantId, id: staffId, fullName } = req.user;
+
+    const food = await Food.findOne({ _id: id, restaurantId });
+
+    if (!food) {
+      return res.status(404).json({
+        success: false,
+        message: 'Taom topilmadi'
+      });
+    }
+
+    if (food.isInStopList) {
+      return res.status(400).json({
+        success: false,
+        message: 'Taom allaqachon stop-listda'
+      });
+    }
+
+    await food.addToStopList(reason || 'Mahsulot tugagan', staffId, fullName);
+    await food.populate('categoryId', 'title');
+
+    // Emit socket event to all clients
+    socketService.emitToRestaurant(restaurantId, 'stoplist:updated', {
+      foodId: food._id,
+      isInStopList: true,
+      food
+    });
+
+    res.json({
+      success: true,
+      message: 'Taom stop-listga qo\'shildi',
+      data: food
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// Remove food from stop-list
+exports.removeFromStopList = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const { restaurantId, id: staffId, fullName } = req.user;
+
+    const food = await Food.findOne({ _id: id, restaurantId });
+
+    if (!food) {
+      return res.status(404).json({
+        success: false,
+        message: 'Taom topilmadi'
+      });
+    }
+
+    if (!food.isInStopList) {
+      return res.status(400).json({
+        success: false,
+        message: 'Taom stop-listda emas'
+      });
+    }
+
+    await food.removeFromStopList(staffId, fullName);
+    await food.populate('categoryId', 'title');
+
+    // Emit socket event to all clients
+    socketService.emitToRestaurant(restaurantId, 'stoplist:updated', {
+      foodId: food._id,
+      isInStopList: false,
+      food
+    });
+
+    res.json({
+      success: true,
+      message: 'Taom stop-listdan olib tashlandi',
+      data: food
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// Bulk add to stop-list
+exports.bulkAddToStopList = async (req, res, next) => {
+  try {
+    const { restaurantId, id: staffId, fullName } = req.user;
+    const { foodIds, reason } = req.body;
+
+    if (!Array.isArray(foodIds) || foodIds.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'foodIds array kerak'
+      });
+    }
+
+    const foods = await Food.find({
+      _id: { $in: foodIds },
+      restaurantId
+    });
+
+    for (const food of foods) {
+      if (!food.isInStopList) {
+        await food.addToStopList(reason || 'Mahsulot tugagan', staffId, fullName);
+      }
+    }
+
+    // Emit socket event
+    socketService.emitToRestaurant(restaurantId, 'stoplist:bulk-updated', {
+      foodIds,
+      isInStopList: true
+    });
+
+    res.json({
+      success: true,
+      message: `${foods.length} ta taom stop-listga qo'shildi`,
+      data: foods
+    });
+  } catch (error) {
+    next(error);
+  }
+};

@@ -150,7 +150,7 @@ const createOrder = asyncHandler(async (req, res) => {
     throw new AppError('Kamida bitta taom kerak', 400, 'VALIDATION_ERROR');
   }
 
-  // Prepare items with food details
+  // Prepare items with food details (TZ 3.2: kim qo'shganini saqlash)
   const orderItems = await Promise.all(items.map(async (item) => {
     const food = await Food.findById(item.foodId);
     return {
@@ -158,7 +158,9 @@ const createOrder = asyncHandler(async (req, res) => {
       foodName: food ? food.foodName || food.name : item.foodName,
       categoryId: food ? food.categoryId : item.categoryId,
       quantity: item.quantity || 1,
-      price: food ? food.price : item.price
+      price: food ? food.price : item.price,
+      addedBy: userId,
+      addedByName: fullName
     };
   }));
 
@@ -442,7 +444,7 @@ const deleteOrder = asyncHandler(async (req, res) => {
  */
 const addItems = asyncHandler(async (req, res) => {
   const { id } = req.params;
-  const { restaurantId } = req.user;
+  const { restaurantId, id: userId, fullName } = req.user;
   const { items } = req.body;
 
   const order = await Order.findOne({ _id: id, restaurantId });
@@ -450,7 +452,7 @@ const addItems = asyncHandler(async (req, res) => {
     throw new AppError('Order topilmadi', 404, 'NOT_FOUND');
   }
 
-  // Add items
+  // Add items (TZ 3.2: kim qo'shganini saqlash)
   for (const item of items) {
     const food = await Food.findById(item.foodId);
     order.addItem({
@@ -458,7 +460,9 @@ const addItems = asyncHandler(async (req, res) => {
       foodName: food ? food.foodName : item.foodName,
       categoryId: food ? food.categoryId : item.categoryId,
       quantity: item.quantity || 1,
-      price: food ? food.price : item.price
+      price: food ? food.price : item.price,
+      addedBy: userId,
+      addedByName: fullName
     });
   }
 
@@ -1036,6 +1040,348 @@ const getWaiterStats = asyncHandler(async (req, res) => {
   });
 });
 
+/**
+ * TZ 1.1: Cancel item (admin only)
+ * POST /api/orders/:id/items/:itemId/cancel
+ */
+const cancelItem = asyncHandler(async (req, res) => {
+  const { id, itemId } = req.params;
+  const { reason } = req.body;
+  const { restaurantId, id: userId, fullName } = req.user;
+
+  const order = await Order.findOne({ _id: id, restaurantId });
+  if (!order) {
+    throw new AppError('Order topilmadi', 404, 'NOT_FOUND');
+  }
+
+  const item = order.items.id(itemId);
+  if (!item || item.isDeleted) {
+    throw new AppError('Item topilmadi', 404, 'NOT_FOUND');
+  }
+
+  if (item.status === 'cancelled') {
+    throw new AppError('Item allaqachon bekor qilingan', 400, 'ALREADY_CANCELLED');
+  }
+
+  // Bekor qilish ma'lumotlarini saqlash
+  order.cancelItem(itemId, userId, fullName, reason);
+  await order.save();
+
+  // Populate for response
+  await order.populate('tableId', 'title tableNumber');
+  await order.populate('waiterId', 'firstName lastName');
+
+  emitOrderEvent(restaurantId.toString(), ORDER_EVENTS.UPDATED, {
+    order,
+    action: 'item_cancelled',
+    itemId,
+    cancelledItem: {
+      foodName: item.foodName,
+      quantity: item.quantity,
+      price: item.price,
+      total: item.price * item.quantity,
+      reason: reason
+    }
+  });
+
+  res.json({
+    success: true,
+    message: 'Item bekor qilindi',
+    data: {
+      order,
+      cancelledItem: {
+        _id: itemId,
+        foodName: item.foodName,
+        quantity: item.quantity,
+        price: item.price,
+        total: item.price * item.quantity,
+        cancelledBy: fullName,
+        cancelledAt: item.cancelledAt,
+        reason: reason
+      }
+    }
+  });
+});
+
+/**
+ * TZ 3.5: Transfer order to another table
+ * POST /api/orders/:id/transfer
+ */
+const transferOrder = asyncHandler(async (req, res) => {
+  const { id } = req.params;
+  const { newTableId } = req.body;
+  const { restaurantId, id: userId, fullName } = req.user;
+
+  if (!newTableId) {
+    throw new AppError('Yangi stol ID kiritilishi shart', 400, 'VALIDATION_ERROR');
+  }
+
+  const order = await Order.findOne({ _id: id, restaurantId });
+  if (!order) {
+    throw new AppError('Order topilmadi', 404, 'NOT_FOUND');
+  }
+
+  if (order.isPaid) {
+    throw new AppError('To\'langan buyurtmani ko\'chirish mumkin emas', 400, 'ALREADY_PAID');
+  }
+
+  // Yangi stolni tekshirish
+  const newTable = await Table.findOne({ _id: newTableId, restaurantId });
+  if (!newTable) {
+    throw new AppError('Yangi stol topilmadi', 404, 'NOT_FOUND');
+  }
+
+  // Eski stolni bo'shatish
+  const oldTableId = order.tableId;
+  if (oldTableId) {
+    await Table.findByIdAndUpdate(oldTableId, {
+      status: 'free',
+      activeOrderId: null
+    });
+  }
+
+  // Stol ko'chirish
+  const newWaiterId = newTable.assignedWaiterId || order.waiterId;
+  let newWaiterName = order.waiterName;
+
+  if (newTable.assignedWaiterId && newTable.assignedWaiterId.toString() !== order.waiterId?.toString()) {
+    const Staff = require('../models').Staff;
+    const newWaiter = await Staff.findById(newTable.assignedWaiterId);
+    if (newWaiter) {
+      newWaiterName = newWaiter.fullName;
+    }
+  }
+
+  order.transferToTable(newTableId, newWaiterId, newWaiterName, userId);
+  order.tableName = newTable.title;
+  await order.save();
+
+  // Yangi stolni band qilish
+  await Table.findByIdAndUpdate(newTableId, {
+    status: 'occupied',
+    activeOrderId: order._id
+  });
+
+  await order.populate('tableId', 'title tableNumber');
+  await order.populate('waiterId', 'firstName lastName');
+
+  emitOrderEvent(restaurantId.toString(), ORDER_EVENTS.UPDATED, {
+    order,
+    action: 'order_transferred',
+    fromTableId: oldTableId,
+    toTableId: newTableId
+  });
+
+  res.json({
+    success: true,
+    message: 'Buyurtma yangi stolga ko\'chirildi',
+    data: {
+      order,
+      fromTableId: oldTableId,
+      toTableId: newTableId,
+      serviceChargeGoesTo: order.serviceChargeWaiterId
+    }
+  });
+});
+
+/**
+ * TZ 3.1: Create personal order (waiter for themselves)
+ * POST /api/orders/personal
+ */
+const createPersonalOrder = asyncHandler(async (req, res) => {
+  const { restaurantId, id: userId, fullName } = req.user;
+  const { items, comment } = req.body;
+
+  if (!items || items.length === 0) {
+    throw new AppError('Kamida bitta taom kerak', 400, 'VALIDATION_ERROR');
+  }
+
+  // Prepare items
+  const orderItems = await Promise.all(items.map(async (item) => {
+    const food = await Food.findById(item.foodId);
+    return {
+      foodId: item.foodId,
+      foodName: food ? food.foodName || food.name : item.foodName,
+      categoryId: food ? food.categoryId : item.categoryId,
+      quantity: item.quantity || 1,
+      price: food ? food.price : item.price,
+      addedBy: userId,
+      addedByName: fullName
+    };
+  }));
+
+  const orderNumber = await Order.getNextOrderNumber(restaurantId);
+
+  const order = new Order({
+    restaurantId,
+    orderNumber,
+    orderType: 'dine-in',
+    items: orderItems,
+    waiterId: userId,
+    waiterName: fullName,
+    waiterApproved: true,
+    approvedAt: new Date(),
+    source: 'waiter',
+    comment,
+    isPersonalOrder: true,
+    personalOrderStaffId: userId,
+    deductFromSalary: true,
+    // Shaxsiy buyurtmalarda xizmat haqi yo'q
+    serviceChargePercent: 0
+  });
+
+  await order.save();
+
+  emitOrderEvent(restaurantId.toString(), ORDER_EVENTS.CREATED, { order, isPersonalOrder: true });
+
+  res.status(201).json({
+    success: true,
+    message: 'Shaxsiy buyurtma yaratildi. Maoshdan ushlab qolinadi.',
+    data: order
+  });
+});
+
+/**
+ * TZ 3.3: Get archived orders for a specific date
+ * GET /api/orders/archive/:date
+ */
+const getArchivedOrders = asyncHandler(async (req, res) => {
+  const { date } = req.params;
+  const { restaurantId, id: userId, role } = req.user;
+
+  const startOfDay = new Date(date);
+  startOfDay.setHours(0, 0, 0, 0);
+  const endOfDay = new Date(date);
+  endOfDay.setHours(23, 59, 59, 999);
+
+  const filter = {
+    restaurantId,
+    createdAt: { $gte: startOfDay, $lte: endOfDay },
+    isPaid: true
+  };
+
+  // Waiter faqat o'z buyurtmalarini ko'radi
+  if (role === 'waiter') {
+    filter.$or = [
+      { waiterId: userId },
+      { originalWaiterId: userId },
+      { serviceChargeWaiterId: userId }
+    ];
+  }
+
+  const orders = await Order.find(filter)
+    .populate('waiterId', 'firstName lastName')
+    .populate('tableId', 'title tableNumber')
+    .sort({ paidAt: -1 });
+
+  // Kunlik statistika
+  const summary = {
+    totalOrders: orders.length,
+    totalRevenue: orders.reduce((sum, o) => sum + o.grandTotal, 0),
+    totalServiceCharge: orders.reduce((sum, o) => sum + o.serviceCharge, 0)
+  };
+
+  res.json({
+    success: true,
+    data: {
+      date: date,
+      orders,
+      summary
+    }
+  });
+});
+
+/**
+ * TZ 3.4: Get waiter daily income (5% from service)
+ * GET /api/orders/waiter-income/:waiterId
+ */
+const getWaiterDailyIncome = asyncHandler(async (req, res) => {
+  const { waiterId } = req.params;
+  const { date } = req.query;
+  const { restaurantId } = req.user;
+
+  const targetDate = date ? new Date(date) : new Date();
+  const startOfDay = new Date(targetDate);
+  startOfDay.setHours(0, 0, 0, 0);
+  const endOfDay = new Date(targetDate);
+  endOfDay.setHours(23, 59, 59, 999);
+
+  // Xizmat haqi shu ofitsiantga tegishli bo'lgan buyurtmalar
+  const orders = await Order.find({
+    restaurantId,
+    createdAt: { $gte: startOfDay, $lte: endOfDay },
+    isPaid: true,
+    $or: [
+      { serviceChargeWaiterId: waiterId },
+      { waiterId: waiterId, serviceChargeWaiterId: { $exists: false } }
+    ]
+  });
+
+  const totalServiceCharge = orders.reduce((sum, o) => sum + o.serviceCharge, 0);
+  // Ofitsiant xizmat haqidan 5% oladi
+  const waiterIncome = Math.round(totalServiceCharge * 0.05);
+
+  res.json({
+    success: true,
+    data: {
+      waiterId,
+      date: targetDate.toISOString().split('T')[0],
+      ordersCount: orders.length,
+      totalServiceCharge,
+      waiterIncomePercent: 5,
+      waiterIncome
+    }
+  });
+});
+
+/**
+ * TZ 3.4: Get my daily income (for waiter)
+ * GET /api/orders/my-income
+ */
+const getMyDailyIncome = asyncHandler(async (req, res) => {
+  const { restaurantId, id: userId } = req.user;
+  const { date } = req.query;
+
+  const targetDate = date ? new Date(date) : new Date();
+  const startOfDay = new Date(targetDate);
+  startOfDay.setHours(0, 0, 0, 0);
+  const endOfDay = new Date(targetDate);
+  endOfDay.setHours(23, 59, 59, 999);
+
+  const orders = await Order.find({
+    restaurantId,
+    createdAt: { $gte: startOfDay, $lte: endOfDay },
+    isPaid: true,
+    $or: [
+      { serviceChargeWaiterId: userId },
+      { waiterId: userId, serviceChargeWaiterId: { $exists: false } }
+    ]
+  }).populate('tableId', 'title');
+
+  const totalServiceCharge = orders.reduce((sum, o) => sum + o.serviceCharge, 0);
+  const waiterIncome = Math.round(totalServiceCharge * 0.05);
+
+  res.json({
+    success: true,
+    data: {
+      date: targetDate.toISOString().split('T')[0],
+      ordersCount: orders.length,
+      orders: orders.map(o => ({
+        _id: o._id,
+        orderNumber: o.orderNumber,
+        tableName: o.tableId?.title || o.tableName,
+        grandTotal: o.grandTotal,
+        serviceCharge: o.serviceCharge,
+        paidAt: o.paidAt
+      })),
+      totalServiceCharge,
+      waiterIncomePercent: 5,
+      waiterIncome,
+      message: `Bugungi daromadingiz: ${waiterIncome.toLocaleString()} so'm`
+    }
+  });
+});
+
 module.exports = {
   getOrders,
   getTodayOrders,
@@ -1053,5 +1399,12 @@ module.exports = {
   changeWaiter,
   approveOrder,
   rejectOrder,
-  getWaiterStats
+  getWaiterStats,
+  // Yangi funksiyalar
+  cancelItem,
+  transferOrder,
+  createPersonalOrder,
+  getArchivedOrders,
+  getWaiterDailyIncome,
+  getMyDailyIncome
 };

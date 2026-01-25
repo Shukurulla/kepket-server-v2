@@ -45,6 +45,29 @@ const foodSchema = new mongoose.Schema({
     min: 0
   },
 
+  // === TZ 1.3, 2.2, 2.3, 3.7: Stop-list boshqaruvi ===
+  isInStopList: {
+    type: Boolean,
+    default: false,
+    index: true
+  },
+  stopListReason: {
+    type: String,
+    trim: true
+  },
+  stoppedAt: Date,
+  stoppedBy: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Staff'
+  },
+  stoppedByName: String,
+  resumedAt: Date,
+  resumedBy: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Staff'
+  },
+  resumedByName: String,
+
   // Nutrition info (optional)
   nutrition: {
     calories: Number,
@@ -109,6 +132,35 @@ foodSchema.statics.getPopular = function(restaurantId, limit = 10) {
 foodSchema.methods.incrementOrderCount = function(count = 1) {
   this.orderCount += count;
   return this.save();
+};
+
+// TZ 1.3: Stop-list metodlari
+foodSchema.methods.addToStopList = function(reason, staffId, staffName) {
+  this.isInStopList = true;
+  this.stopListReason = reason;
+  this.stoppedAt = new Date();
+  this.stoppedBy = staffId;
+  this.stoppedByName = staffName;
+  this.resumedAt = null;
+  this.resumedBy = null;
+  this.resumedByName = null;
+  return this.save();
+};
+
+foodSchema.methods.removeFromStopList = function(staffId, staffName) {
+  this.isInStopList = false;
+  this.resumedAt = new Date();
+  this.resumedBy = staffId;
+  this.resumedByName = staffName;
+  return this.save();
+};
+
+// Static: Get stop-list items
+foodSchema.statics.getStopList = function(restaurantId) {
+  return this.find({
+    restaurantId,
+    isInStopList: true
+  }).populate('categoryId', 'title').sort({ stoppedAt: -1 });
 };
 
 const Food = mongoose.model('Food', foodSchema);

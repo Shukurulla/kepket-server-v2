@@ -46,17 +46,25 @@ const orderItemSchema = new mongoose.Schema({
   readyAt: Date,
   servedAt: Date,
 
-  // Item history
+  // Item history - kim qo'shganini kuzatish (TZ 3.2)
   addedAt: {
     type: Date,
     default: Date.now
   },
+  addedBy: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Staff'
+  },
+  addedByName: String,
+
+  // Bekor qilish tarixi (TZ 1.1)
   cancelledAt: Date,
   cancelReason: String,
   cancelledBy: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Staff'
   },
+  cancelledByName: String,
 
   // Soft delete at item level
   isDeleted: {
@@ -253,7 +261,56 @@ const orderSchema = new mongoose.Schema({
   servedAt: Date,
 
   // General comment
-  comment: String
+  comment: String,
+
+  // === TZ 3.1: Shaxsiy buyurtma (ofitsiant o'zi uchun) ===
+  isPersonalOrder: {
+    type: Boolean,
+    default: false
+  },
+  personalOrderStaffId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Staff'
+  },
+  deductFromSalary: {
+    type: Boolean,
+    default: false
+  },
+  salaryDeducted: {
+    type: Boolean,
+    default: false
+  },
+  salaryDeductedAt: Date,
+
+  // === TZ 3.5-3.6: Stol ko'chirish va xizmat haqi qoidalari ===
+  originalTableId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Table'
+  },
+  originalWaiterId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Staff'
+  },
+  originalWaiterName: String,
+  transferredAt: Date,
+  transferredFromTableId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Table'
+  },
+  transferHistory: [{
+    fromTableId: { type: mongoose.Schema.Types.ObjectId, ref: 'Table' },
+    toTableId: { type: mongoose.Schema.Types.ObjectId, ref: 'Table' },
+    fromWaiterId: { type: mongoose.Schema.Types.ObjectId, ref: 'Staff' },
+    toWaiterId: { type: mongoose.Schema.Types.ObjectId, ref: 'Staff' },
+    transferredAt: { type: Date, default: Date.now },
+    transferredBy: { type: mongoose.Schema.Types.ObjectId, ref: 'Staff' }
+  }],
+
+  // Xizmat haqini qaysi ofitsiantga yozish kerak
+  serviceChargeWaiterId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Staff'
+  }
 }, {
   timestamps: true,
   toJSON: { virtuals: true },
@@ -306,8 +363,14 @@ orderSchema.methods.recalculateTotals = function() {
   // Calculate subtotal
   this.subtotal = activeItems.reduce((sum, item) => sum + (item.price * item.quantity), 0);
 
-  // Calculate service charge
-  this.serviceCharge = Math.round(this.subtotal * (this.serviceChargePercent / 100));
+  // TZ 2.1: Olib ketish (takeaway) buyurtmalaridan xizmat haqi olinmaydi
+  if (this.orderType === 'takeaway') {
+    this.serviceCharge = 0;
+    this.serviceChargePercent = 0;
+  } else {
+    // Calculate service charge
+    this.serviceCharge = Math.round(this.subtotal * (this.serviceChargePercent / 100));
+  }
 
   // Calculate discount if percent-based
   if (this.discountPercent > 0) {
@@ -434,6 +497,57 @@ orderSchema.methods.reject = function(rejectedById, reason = null) {
   this.rejectedBy = rejectedById;
   this.rejectionReason = reason;
   this.status = 'cancelled';
+  return this;
+};
+
+// TZ 1.1: Admin uchun itemni bekor qilish (cancel, not delete)
+orderSchema.methods.cancelItem = function(itemId, cancelledById, cancelledByName, reason = null) {
+  const item = this.items.id(itemId);
+  if (item && !item.isDeleted) {
+    item.status = 'cancelled';
+    item.cancelledAt = new Date();
+    item.cancelledBy = cancelledById;
+    item.cancelledByName = cancelledByName;
+    item.cancelReason = reason;
+    this.recalculateTotals();
+  }
+  return this;
+};
+
+// TZ 3.5-3.6: Stolni ko'chirish
+orderSchema.methods.transferToTable = function(newTableId, newWaiterId, newWaiterName, transferredById) {
+  // Transfer tarixini saqlash
+  this.transferHistory.push({
+    fromTableId: this.tableId,
+    toTableId: newTableId,
+    fromWaiterId: this.waiterId,
+    toWaiterId: newWaiterId,
+    transferredAt: new Date(),
+    transferredBy: transferredById
+  });
+
+  // Original ma'lumotlarni saqlash (agar birinchi marta ko'chirilayotgan bo'lsa)
+  if (!this.originalTableId) {
+    this.originalTableId = this.tableId;
+    this.originalWaiterId = this.waiterId;
+    this.originalWaiterName = this.waiterName;
+  }
+
+  // Xizmat haqi qoidasi: birinchi ofitsiantga yoziladi
+  if (!this.serviceChargeWaiterId) {
+    this.serviceChargeWaiterId = this.originalWaiterId || this.waiterId;
+  }
+
+  this.transferredFromTableId = this.tableId;
+  this.transferredAt = new Date();
+  this.tableId = newTableId;
+
+  // Agar yangi stol biriktirilgan ofitsiant bor bo'lsa
+  if (newWaiterId) {
+    this.waiterId = newWaiterId;
+    this.waiterName = newWaiterName;
+  }
+
   return this;
 };
 

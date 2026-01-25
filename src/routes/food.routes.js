@@ -42,4 +42,10 @@ router.delete('/:id', requireRole('admin'), foodController.delete);
 // Restore food (admin only)
 router.post('/:id/restore', requireRole('admin'), foodController.restore);
 
+// === TZ 1.3, 2.2: Stop-list routes (admin va cashier) ===
+router.get('/stoplist/all', requireRole('admin', 'cashier'), foodController.getStopList);
+router.post('/stoplist/bulk', requireRole('admin', 'cashier'), foodController.bulkAddToStopList);
+router.post('/:id/stoplist/add', requireRole('admin', 'cashier'), foodController.addToStopList);
+router.post('/:id/stoplist/remove', requireRole('admin', 'cashier'), foodController.removeFromStopList);
+
 module.exports = router;

@@ -526,3 +526,157 @@ exports.getWaiters = async (req, res, next) => {
     next(error);
   }
 };
+
+// === TZ 1.2, 6.1-6.2: Banket zali boshqaruvi ===
+
+// Get all banquet halls
+exports.getBanquetHalls = async (req, res, next) => {
+  try {
+    const { restaurantId } = req.user;
+
+    const banquetHalls = await Table.findBanquetHalls(restaurantId);
+
+    res.json({
+      success: true,
+      data: banquetHalls
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// Split banquet hall into tables
+exports.splitBanquetHall = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const { tableCount } = req.body;
+    const { restaurantId } = req.user;
+
+    if (!tableCount || tableCount < 2 || tableCount > 20) {
+      return res.status(400).json({
+        success: false,
+        message: 'Stollar soni 2 dan 20 gacha bo\'lishi kerak'
+      });
+    }
+
+    const banquetHall = await Table.findOne({
+      _id: id,
+      restaurantId,
+      isBanquetHall: true
+    });
+
+    if (!banquetHall) {
+      return res.status(404).json({
+        success: false,
+        message: 'Banket zali topilmadi'
+      });
+    }
+
+    const virtualTables = await banquetHall.splitIntoTables(tableCount);
+
+    // Emit socket event
+    socketService.emitToRestaurant(restaurantId, 'banquet:split', {
+      banquetHall,
+      virtualTables
+    });
+
+    res.json({
+      success: true,
+      message: `Banket zali ${tableCount} ta stolga bo'lindi`,
+      data: {
+        banquetHall,
+        virtualTables
+      }
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// Merge banquet hall tables back
+exports.mergeBanquetHall = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const { restaurantId } = req.user;
+
+    const banquetHall = await Table.findOne({
+      _id: id,
+      restaurantId,
+      isBanquetHall: true
+    });
+
+    if (!banquetHall) {
+      return res.status(404).json({
+        success: false,
+        message: 'Banket zali topilmadi'
+      });
+    }
+
+    await banquetHall.mergeTables();
+
+    // Emit socket event
+    socketService.emitToRestaurant(restaurantId, 'banquet:merged', {
+      banquetHall
+    });
+
+    res.json({
+      success: true,
+      message: 'Banket zali birlashtirildi',
+      data: banquetHall
+    });
+  } catch (error) {
+    // Check for specific error messages
+    if (error.message && error.message.includes('faol buyurtmalar')) {
+      return res.status(400).json({
+        success: false,
+        message: error.message
+      });
+    }
+    next(error);
+  }
+};
+
+// Toggle banquet mode (normal/split pricing)
+exports.toggleBanquetMode = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const { mode } = req.body;
+    const { restaurantId } = req.user;
+
+    if (!['normal', 'split'].includes(mode)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Mode "normal" yoki "split" bo\'lishi kerak'
+      });
+    }
+
+    const banquetHall = await Table.findOne({
+      _id: id,
+      restaurantId,
+      isBanquetHall: true
+    });
+
+    if (!banquetHall) {
+      return res.status(404).json({
+        success: false,
+        message: 'Banket zali topilmadi'
+      });
+    }
+
+    banquetHall.banquetMode = mode;
+    await banquetHall.save();
+
+    socketService.emitToRestaurant(restaurantId, 'banquet:mode-changed', {
+      banquetHall,
+      mode
+    });
+
+    res.json({
+      success: true,
+      message: `Banket rejimi ${mode === 'normal' ? 'soatlik to\'lov' : 'stollar + 10% xizmat haqi'}ga o'zgartirildi`,
+      data: banquetHall
+    });
+  } catch (error) {
+    next(error);
+  }
+};

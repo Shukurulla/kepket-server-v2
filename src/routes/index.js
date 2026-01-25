@@ -13,6 +13,7 @@ const notificationRoutes = require('./notification.routes');
 const reportRoutes = require('./report.routes');
 const qrRoutes = require('./qr.routes');
 const superAdminRoutes = require('./superAdmin.routes');
+const systemRoutes = require('./system.routes');
 
 // API routes
 router.use('/auth', authRoutes);
@@ -26,6 +27,7 @@ router.use('/notifications', notificationRoutes);
 router.use('/reports', reportRoutes);
 router.use('/qr', qrRoutes);
 router.use('/super-admin', superAdminRoutes);
+router.use('/system', systemRoutes);
 
 // Health check
 router.get('/health', (req, res) => {

@@ -33,4 +33,20 @@ router.patch('/:id/items/:itemId/quantity', orderController.updateItemQuantity);
 router.patch('/:id/items/:itemId/ready', requireRole('cook', 'admin'), orderController.markItemReady);
 router.patch('/:id/items/:itemId/partial-ready', requireRole('cook', 'admin'), orderController.markItemPartialReady);
 
+// TZ 1.1: Admin uchun itemni bekor qilish
+router.post('/:id/items/:itemId/cancel', requireRole('admin'), orderController.cancelItem);
+
+// TZ 3.5: Stolni ko'chirish
+router.post('/:id/transfer', requireRole('waiter', 'admin'), orderController.transferOrder);
+
+// TZ 3.1: Shaxsiy buyurtma yaratish
+router.post('/personal', requireRole('waiter'), orderController.createPersonalOrder);
+
+// TZ 3.3: Arxivlangan buyurtmalar (kunlik)
+router.get('/archive/:date', orderController.getArchivedOrders);
+
+// TZ 3.4: Ofitsiant kunlik daromadi
+router.get('/waiter-income/:waiterId', orderController.getWaiterDailyIncome);
+router.get('/my-income', requireRole('waiter'), orderController.getMyDailyIncome);
+
 module.exports = router;

@@ -51,4 +51,10 @@ router.post('/:id/assign-waiter', requireRole('admin'), tableController.assignWa
 // Get waiters for assignment
 router.get('/waiters/list', tableController.getWaiters);
 
+// === TZ 1.2, 6.1-6.2: Banket zali boshqaruvi ===
+router.get('/banquet-halls/all', requireRole('admin'), tableController.getBanquetHalls);
+router.post('/:id/banquet/split', requireRole('admin'), tableController.splitBanquetHall);
+router.post('/:id/banquet/merge', requireRole('admin'), tableController.mergeBanquetHall);
+router.post('/:id/banquet/mode', requireRole('admin'), tableController.toggleBanquetMode);
+
 module.exports = router;
