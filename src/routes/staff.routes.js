@@ -10,6 +10,7 @@ router.use(auth);
 // Attendance - ishga keldi/ketdi (Flutter waiter app uchun)
 // MUHIM: Bu /:id dan OLDIN bo'lishi kerak!
 router.post('/attendance', staffController.attendance);
+router.get('/attendance/today', staffController.getAttendanceToday);
 
 // Get all staff (admin, cashier)
 router.get('/', requireRole('admin', 'cashier'), staffController.getAll);

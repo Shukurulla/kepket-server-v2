@@ -380,3 +380,38 @@ exports.attendance = async (req, res, next) => {
     next(error);
   }
 };
+
+// Get today's attendance status (Flutter waiter app uchun)
+// GET /api/staff/attendance/today
+exports.getAttendanceToday = async (req, res, next) => {
+  try {
+    const { id: staffId } = req.user;
+
+    const staff = await Staff.findById(staffId).select('isWorking lastSeenAt');
+    if (!staff) {
+      return res.status(404).json({
+        success: false,
+        message: 'Staff not found'
+      });
+    }
+
+    // Bugungi sana
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    res.json({
+      success: true,
+      data: {
+        staffId: staffId,
+        isWorking: staff.isWorking,
+        date: today.toISOString().split('T')[0],
+        lastSeenAt: staff.lastSeenAt,
+        // Flutter kutayotgan format
+        checkIn: staff.isWorking ? staff.lastSeenAt : null,
+        checkOut: !staff.isWorking && staff.lastSeenAt ? staff.lastSeenAt : null
+      }
+    });
+  } catch (error) {
+    next(error);
+  }
+};
