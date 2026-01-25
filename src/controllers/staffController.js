@@ -348,9 +348,10 @@ exports.attendance = async (req, res, next) => {
     }
 
     // Toggle isWorking based on type
-    if (type === 'check_in') {
+    // Flutter "keldi"/"ketdi" yuboradi, backend "check_in"/"check_out" ham qabul qiladi
+    if (type === 'check_in' || type === 'keldi') {
       staff.isWorking = true;
-    } else if (type === 'check_out') {
+    } else if (type === 'check_out' || type === 'ketdi') {
       staff.isWorking = false;
     } else {
       // Toggle if no type specified
@@ -369,10 +370,11 @@ exports.attendance = async (req, res, next) => {
 
     res.json({
       success: true,
+      isWorking: staff.isWorking,
       data: {
         _id: staff._id,
         isWorking: staff.isWorking,
-        type: staff.isWorking ? 'check_in' : 'check_out'
+        type: staff.isWorking ? 'keldi' : 'ketdi'
       },
       message: staff.isWorking ? 'Ishga keldingiz' : 'Ishdan ketdingiz'
     });
@@ -399,16 +401,28 @@ exports.getAttendanceToday = async (req, res, next) => {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
+    // Flutter kutayotgan format - todayAttendances array
+    const todayAttendances = [];
+    if (staff.lastSeenAt) {
+      const lastSeenDate = new Date(staff.lastSeenAt);
+      // Agar lastSeenAt bugun bo'lsa
+      if (lastSeenDate >= today) {
+        todayAttendances.push({
+          type: staff.isWorking ? 'keldi' : 'ketdi',
+          createdAt: staff.lastSeenAt
+        });
+      }
+    }
+
     res.json({
       success: true,
+      isWorking: staff.isWorking,
+      todayAttendances: todayAttendances,
       data: {
         staffId: staffId,
         isWorking: staff.isWorking,
         date: today.toISOString().split('T')[0],
-        lastSeenAt: staff.lastSeenAt,
-        // Flutter kutayotgan format
-        checkIn: staff.isWorking ? staff.lastSeenAt : null,
-        checkOut: !staff.isWorking && staff.lastSeenAt ? staff.lastSeenAt : null
+        lastSeenAt: staff.lastSeenAt
       }
     });
   } catch (error) {
