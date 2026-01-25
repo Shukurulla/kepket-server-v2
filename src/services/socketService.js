@@ -272,7 +272,7 @@ class SocketService {
         const kitchenOrders = await Order.find({
           restaurantId: data.restaurantId,
           status: { $in: ['pending', 'preparing', 'approved'] },
-          'items.kitchenStatus': { $in: ['pending', 'preparing'] }
+          'items.status': { $in: ['pending', 'preparing'] }
         }).populate('items.foodId', 'name price categoryId image')
           .populate('tableId', 'title tableNumber')
           .populate('waiterId', 'firstName lastName')

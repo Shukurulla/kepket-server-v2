@@ -14,8 +14,8 @@ exports.getOrders = async (req, res, next) => {
 
     const orders = await Order.find({
       restaurantId,
-      status: { $in: ['active', 'pending'] },
-      'items.kitchenStatus': { $in: kitchenStatuses }
+      status: { $in: ['pending', 'approved', 'preparing'] },
+      'items.status': { $in: kitchenStatuses }
     })
       .populate('tableId', 'number floor')
       .populate('waiterId', 'firstName lastName')
@@ -25,7 +25,7 @@ exports.getOrders = async (req, res, next) => {
     // Transform to kitchen-friendly format
     const kitchenOrders = orders.map(order => {
       const pendingItems = order.items.filter(item =>
-        kitchenStatuses.includes(item.kitchenStatus)
+        kitchenStatuses.includes(item.status)
       );
 
       return {
@@ -122,7 +122,7 @@ exports.updateItemStatus = async (req, res, next) => {
     }
 
     // Update item status
-    item.kitchenStatus = status;
+    item.status = status;
     if (status === 'preparing') {
       item.startedAt = new Date();
       item.preparedBy = cookId;
@@ -130,7 +130,7 @@ exports.updateItemStatus = async (req, res, next) => {
       if (revertCount && revertCount > 0) {
         item.readyQuantity = Math.max(0, (item.readyQuantity || 0) - revertCount);
         if (item.readyQuantity === 0) {
-          item.kitchenStatus = 'preparing';
+          item.status = 'preparing';
         }
       }
     } else if (status === 'ready') {
@@ -140,7 +140,7 @@ exports.updateItemStatus = async (req, res, next) => {
         item.readyQuantity = (item.readyQuantity || 0) + readyCount;
         // Agar barcha items tayyor bo'lmasa, status hali ready emas
         if (item.readyQuantity < item.quantity) {
-          item.kitchenStatus = 'preparing';
+          item.status = 'preparing';
         }
       } else {
         item.readyQuantity = item.quantity;
@@ -160,7 +160,7 @@ exports.updateItemStatus = async (req, res, next) => {
     const kitchenOrders = await Order.find({
       restaurantId,
       status: { $in: ['active', 'pending', 'approved'] },
-      'items.kitchenStatus': { $in: ['pending', 'preparing'] }
+      'items.status': { $in: ['pending', 'preparing'] }
     }).populate('items.foodId', 'name price categoryId image')
       .populate('tableId', 'title tableNumber number')
       .populate('waiterId', 'firstName lastName')
@@ -171,7 +171,7 @@ exports.updateItemStatus = async (req, res, next) => {
       orderId,
       itemId: item._id,
       itemIndex: actualItemIndex,
-      status: item.kitchenStatus,
+      status: item.status,
       order
     });
 
@@ -179,7 +179,7 @@ exports.updateItemStatus = async (req, res, next) => {
     socketService.emitToRole(restaurantId, 'cook', 'kitchen_orders_updated', kitchenOrders);
 
     // If item is ready, notify waiter
-    if (item.kitchenStatus === 'ready' && order.waiterId) {
+    if (item.status === 'ready' && order.waiterId) {
       const foodName = item.foodId?.name || item.foodName || 'Taom';
       const tableNumber = order.tableId?.number || order.tableId?.tableNumber || order.tableNumber;
 
@@ -223,7 +223,7 @@ exports.updateItemStatus = async (req, res, next) => {
 
     res.json({
       success: true,
-      message: `Item status updated to ${item.kitchenStatus}`,
+      message: `Item status updated to ${item.status}`,
       data: order
     });
   } catch (error) {
@@ -248,8 +248,8 @@ exports.startOrder = async (req, res, next) => {
 
     const now = new Date();
     order.items.forEach(item => {
-      if (item.kitchenStatus === 'pending') {
-        item.kitchenStatus = 'preparing';
+      if (item.status === 'pending') {
+        item.status = 'preparing';
         item.startedAt = now;
         item.preparedBy = cookId;
       }
@@ -292,8 +292,8 @@ exports.completeOrder = async (req, res, next) => {
 
     const now = new Date();
     order.items.forEach(item => {
-      if (item.kitchenStatus === 'preparing') {
-        item.kitchenStatus = 'ready';
+      if (item.status === 'preparing') {
+        item.status = 'ready';
         item.readyAt = now;
       }
     });
@@ -366,7 +366,7 @@ exports.getStats = async (req, res, next) => {
     orders.forEach(order => {
       order.items.forEach(item => {
         totalItems++;
-        switch (item.kitchenStatus) {
+        switch (item.status) {
           case 'pending': pendingItems++; break;
           case 'preparing': preparingItems++; break;
           case 'ready': readyItems++; break;

@@ -203,7 +203,7 @@ const createOrder = asyncHandler(async (req, res) => {
     const kitchenOrders = await Order.find({
       restaurantId,
       status: { $in: ['active', 'pending', 'approved'] },
-      'items.kitchenStatus': { $in: ['pending', 'preparing'] }
+      'items.status': { $in: ['pending', 'preparing'] }
     }).populate('items.foodId', 'name price categoryId image')
       .populate('tableId', 'title tableNumber number')
       .populate('waiterId', 'firstName lastName')
@@ -683,7 +683,7 @@ const approveOrder = asyncHandler(async (req, res) => {
     const kitchenOrders = await Order.find({
       restaurantId,
       status: { $in: ['active', 'pending', 'approved'] },
-      'items.kitchenStatus': { $in: ['pending', 'preparing'] }
+      'items.status': { $in: ['pending', 'preparing'] }
     }).populate('items.foodId', 'name price categoryId image')
       .populate('tableId', 'title tableNumber number')
       .populate('waiterId', 'firstName lastName')
