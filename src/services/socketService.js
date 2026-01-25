@@ -372,6 +372,8 @@ class SocketService {
 
         // kitchen_orders_updated ham yuborish (backward compatibility)
         this.emitToRole(data.restaurantId, 'cook', 'kitchen_orders_updated', kitchenOrders);
+        // Admin uchun ham
+        this.emitToRole(data.restaurantId, 'admin', 'kitchen_orders_updated', kitchenOrders);
       } catch (err) {
         console.error('Error fetching kitchen orders for cook:', err);
       }
@@ -453,6 +455,8 @@ class SocketService {
         }).filter(o => o.items.length > 0);
 
         this.emitToRole(restaurantId.toString(), 'cook', 'kitchen_orders_updated', kitchenOrders);
+        // Admin uchun ham yuborish
+        this.emitToRole(restaurantId.toString(), 'admin', 'kitchen_orders_updated', kitchenOrders);
       } catch (err) {
         console.error('Error sending kitchen orders after serve:', err);
       }

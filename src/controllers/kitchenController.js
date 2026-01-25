@@ -220,6 +220,8 @@ exports.updateItemStatus = async (req, res, next) => {
 
     // cook-web uchun kitchen_orders_updated yuborish
     socketService.emitToRole(restaurantId, 'cook', 'kitchen_orders_updated', kitchenOrders);
+    // Admin uchun ham
+    socketService.emitToRole(restaurantId, 'admin', 'kitchen_orders_updated', kitchenOrders);
 
     // If item is ready OR partial ready, notify waiter
     const itemReadyQty = item.readyQuantity || 0;

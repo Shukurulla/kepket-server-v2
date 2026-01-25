@@ -241,6 +241,7 @@ const createOrder = asyncHandler(async (req, res) => {
       newItems: order.items.map(i => ({ ...i.toObject(), kitchenStatus: i.status }))
     });
     socketService.emitToRole(restaurantId.toString(), 'cook', 'kitchen_orders_updated', kitchenOrders);
+    socketService.emitToRole(restaurantId.toString(), 'admin', 'kitchen_orders_updated', kitchenOrders);
   } catch (err) {
     console.error('Error sending kitchen orders:', err);
   }
@@ -377,6 +378,7 @@ const deleteOrder = asyncHandler(async (req, res) => {
     }).filter(o => o.items.length > 0);
 
     socketService.emitToRole(restaurantId.toString(), 'cook', 'kitchen_orders_updated', kitchenOrders);
+    socketService.emitToRole(restaurantId.toString(), 'admin', 'kitchen_orders_updated', kitchenOrders);
   } catch (err) {
     console.error('Error sending kitchen orders after delete:', err);
   }
@@ -509,6 +511,7 @@ const deleteItem = asyncHandler(async (req, res) => {
     }).filter(o => o.items.length > 0);
 
     socketService.emitToRole(restaurantId.toString(), 'cook', 'kitchen_orders_updated', kitchenOrders);
+    socketService.emitToRole(restaurantId.toString(), 'admin', 'kitchen_orders_updated', kitchenOrders);
   } catch (err) {
     console.error('Error sending kitchen orders after item delete:', err);
   }
@@ -598,6 +601,7 @@ const updateItemQuantity = asyncHandler(async (req, res) => {
     }).filter(o => o.items.length > 0);
 
     socketService.emitToRole(restaurantId.toString(), 'cook', 'kitchen_orders_updated', kitchenOrders);
+    socketService.emitToRole(restaurantId.toString(), 'admin', 'kitchen_orders_updated', kitchenOrders);
   } catch (err) {
     console.error('Error sending kitchen orders:', err);
   }
@@ -865,6 +869,7 @@ const approveOrder = asyncHandler(async (req, res) => {
       newItems: order.items.map(i => ({ ...i.toObject(), kitchenStatus: i.status }))
     });
     socketService.emitToRole(restaurantId.toString(), 'cook', 'kitchen_orders_updated', kitchenOrders);
+    socketService.emitToRole(restaurantId.toString(), 'admin', 'kitchen_orders_updated', kitchenOrders);
   } catch (err) {
     console.error('Error sending kitchen orders:', err);
   }
