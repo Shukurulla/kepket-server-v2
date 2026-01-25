@@ -329,3 +329,54 @@ exports.getWaiters = async (req, res, next) => {
     next(error);
   }
 };
+
+// ==================== FLUTTER COMPATIBILITY ====================
+
+// Attendance - Ishga keldi/ketdi (Flutter waiter app uchun)
+// POST /api/staff/attendance
+exports.attendance = async (req, res, next) => {
+  try {
+    const { id: staffId } = req.user;
+    const { type } = req.body; // 'check_in' or 'check_out'
+
+    const staff = await Staff.findById(staffId);
+    if (!staff) {
+      return res.status(404).json({
+        success: false,
+        message: 'Staff not found'
+      });
+    }
+
+    // Toggle isWorking based on type
+    if (type === 'check_in') {
+      staff.isWorking = true;
+    } else if (type === 'check_out') {
+      staff.isWorking = false;
+    } else {
+      // Toggle if no type specified
+      staff.isWorking = !staff.isWorking;
+    }
+
+    staff.lastSeenAt = new Date();
+    await staff.save();
+
+    // Socket orqali boshqa clientlarga xabar berish
+    socketService.emitToRestaurant(staff.restaurantId, 'staff:attendance', {
+      staffId: staff._id,
+      isWorking: staff.isWorking,
+      type: staff.isWorking ? 'check_in' : 'check_out'
+    });
+
+    res.json({
+      success: true,
+      data: {
+        _id: staff._id,
+        isWorking: staff.isWorking,
+        type: staff.isWorking ? 'check_in' : 'check_out'
+      },
+      message: staff.isWorking ? 'Ishga keldingiz' : 'Ishdan ketdingiz'
+    });
+  } catch (error) {
+    next(error);
+  }
+};
