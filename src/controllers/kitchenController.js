@@ -12,30 +12,46 @@ exports.getOrders = async (req, res, next) => {
       ? [status]
       : ['pending', 'preparing'];
 
+    // Order status filter - ready items need broader order statuses
+    const orderStatuses = status === 'ready'
+      ? ['pending', 'approved', 'preparing', 'ready']
+      : ['pending', 'approved', 'preparing'];
+
     const orders = await Order.find({
       restaurantId,
-      status: { $in: ['pending', 'approved', 'preparing'] },
+      status: { $in: orderStatuses },
       'items.status': { $in: kitchenStatuses }
     })
-      .populate('tableId', 'number floor')
+      .populate('tableId', 'number floor title tableNumber')
       .populate('waiterId', 'firstName lastName')
-      .populate('items.foodId', 'name image preparationTime')
+      .populate('items.foodId', 'name image preparationTime categoryId')
       .sort({ createdAt: 1 });
 
-    // Transform to kitchen-friendly format
+    // Transform to kitchen-friendly format (cook-web expects these field names)
     const kitchenOrders = orders.map(order => {
-      const pendingItems = order.items.filter(item =>
-        kitchenStatuses.includes(item.status)
-      );
+      const pendingItems = order.items
+        .filter(item => kitchenStatuses.includes(item.status))
+        .map(item => ({
+          ...item.toObject(),
+          // cook-web uses kitchenStatus, backend uses status
+          kitchenStatus: item.status,
+          name: item.foodId?.name || item.foodName
+        }));
 
       return {
         _id: order._id,
+        orderId: order._id,
         orderNumber: order.orderNumber,
-        table: order.tableId,
-        waiter: order.waiterId,
+        tableId: order.tableId,
+        tableName: order.tableId?.title || order.tableName || `Stol ${order.tableId?.number || order.tableNumber || ''}`,
+        tableNumber: order.tableId?.number || order.tableNumber,
+        waiterId: order.waiterId,
+        waiterName: order.waiterId ? `${order.waiterId.firstName || ''} ${order.waiterId.lastName || ''}`.trim() : '',
         items: pendingItems,
+        status: order.status,
         createdAt: order.createdAt,
-        notes: order.notes
+        notes: order.notes,
+        restaurantId: order.restaurantId
       };
     }).filter(order => order.items.length > 0);
 
@@ -157,14 +173,39 @@ exports.updateItemStatus = async (req, res, next) => {
     await order.populate('items.foodId', 'name image categoryId');
 
     // Get all kitchen orders for cook-web
-    const kitchenOrders = await Order.find({
+    const rawKitchenOrders = await Order.find({
       restaurantId,
-      status: { $in: ['active', 'pending', 'approved'] },
+      status: { $in: ['pending', 'approved', 'preparing'] },
       'items.status': { $in: ['pending', 'preparing'] }
     }).populate('items.foodId', 'name price categoryId image')
       .populate('tableId', 'title tableNumber number')
       .populate('waiterId', 'firstName lastName')
       .sort({ createdAt: -1 });
+
+    // Transform for cook-web format
+    const kitchenOrders = rawKitchenOrders.map(o => {
+      const items = o.items
+        .filter(i => ['pending', 'preparing'].includes(i.status))
+        .map(i => ({
+          ...i.toObject(),
+          kitchenStatus: i.status,
+          name: i.foodId?.name || i.foodName
+        }));
+      return {
+        _id: o._id,
+        orderId: o._id,
+        orderNumber: o.orderNumber,
+        tableId: o.tableId,
+        tableName: o.tableId?.title || o.tableName || `Stol ${o.tableId?.number || o.tableNumber || ''}`,
+        tableNumber: o.tableId?.number || o.tableNumber,
+        waiterId: o.waiterId,
+        waiterName: o.waiterId ? `${o.waiterId.firstName || ''} ${o.waiterId.lastName || ''}`.trim() : '',
+        items,
+        status: o.status,
+        createdAt: o.createdAt,
+        restaurantId: o.restaurantId
+      };
+    }).filter(o => o.items.length > 0);
 
     // Emit socket events
     socketService.emitToRestaurant(restaurantId, 'kitchen:item-status-changed', {
@@ -172,6 +213,7 @@ exports.updateItemStatus = async (req, res, next) => {
       itemId: item._id,
       itemIndex: actualItemIndex,
       status: item.status,
+      kitchenStatus: item.status,
       order
     });
 

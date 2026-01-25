@@ -200,20 +200,45 @@ const createOrder = asyncHandler(async (req, res) => {
 
   // Cook uchun kitchen_orders_updated yuborish
   try {
-    const kitchenOrders = await Order.find({
+    const rawKitchenOrders = await Order.find({
       restaurantId,
-      status: { $in: ['active', 'pending', 'approved'] },
+      status: { $in: ['pending', 'approved', 'preparing'] },
       'items.status': { $in: ['pending', 'preparing'] }
     }).populate('items.foodId', 'name price categoryId image')
       .populate('tableId', 'title tableNumber number')
       .populate('waiterId', 'firstName lastName')
       .sort({ createdAt: -1 });
 
+    // Transform for cook-web format
+    const kitchenOrders = rawKitchenOrders.map(o => {
+      const items = o.items
+        .filter(i => ['pending', 'preparing'].includes(i.status))
+        .map(i => ({
+          ...i.toObject(),
+          kitchenStatus: i.status,
+          name: i.foodId?.name || i.foodName
+        }));
+      return {
+        _id: o._id,
+        orderId: o._id,
+        orderNumber: o.orderNumber,
+        tableId: o.tableId,
+        tableName: o.tableId?.title || o.tableName || `Stol ${o.tableId?.number || o.tableNumber || ''}`,
+        tableNumber: o.tableId?.number || o.tableNumber,
+        waiterId: o.waiterId,
+        waiterName: o.waiterId ? `${o.waiterId.firstName || ''} ${o.waiterId.lastName || ''}`.trim() : '',
+        items,
+        status: o.status,
+        createdAt: o.createdAt,
+        restaurantId: o.restaurantId
+      };
+    }).filter(o => o.items.length > 0);
+
     socketService.emitToRole(restaurantId.toString(), 'cook', 'new_kitchen_order', {
       order: order,
       allOrders: kitchenOrders,
       isNewOrder: true,
-      newItems: order.items
+      newItems: order.items.map(i => ({ ...i.toObject(), kitchenStatus: i.status }))
     });
     socketService.emitToRole(restaurantId.toString(), 'cook', 'kitchen_orders_updated', kitchenOrders);
   } catch (err) {
@@ -673,20 +698,45 @@ const approveOrder = asyncHandler(async (req, res) => {
 
   // Cook uchun kitchen_orders_updated yuborish
   try {
-    const kitchenOrders = await Order.find({
+    const rawKitchenOrders = await Order.find({
       restaurantId,
-      status: { $in: ['active', 'pending', 'approved'] },
+      status: { $in: ['pending', 'approved', 'preparing'] },
       'items.status': { $in: ['pending', 'preparing'] }
     }).populate('items.foodId', 'name price categoryId image')
       .populate('tableId', 'title tableNumber number')
       .populate('waiterId', 'firstName lastName')
       .sort({ createdAt: -1 });
 
+    // Transform for cook-web format
+    const kitchenOrders = rawKitchenOrders.map(o => {
+      const items = o.items
+        .filter(i => ['pending', 'preparing'].includes(i.status))
+        .map(i => ({
+          ...i.toObject(),
+          kitchenStatus: i.status,
+          name: i.foodId?.name || i.foodName
+        }));
+      return {
+        _id: o._id,
+        orderId: o._id,
+        orderNumber: o.orderNumber,
+        tableId: o.tableId,
+        tableName: o.tableId?.title || o.tableName || `Stol ${o.tableId?.number || o.tableNumber || ''}`,
+        tableNumber: o.tableId?.number || o.tableNumber,
+        waiterId: o.waiterId,
+        waiterName: o.waiterId ? `${o.waiterId.firstName || ''} ${o.waiterId.lastName || ''}`.trim() : '',
+        items,
+        status: o.status,
+        createdAt: o.createdAt,
+        restaurantId: o.restaurantId
+      };
+    }).filter(o => o.items.length > 0);
+
     socketService.emitToRole(restaurantId.toString(), 'cook', 'new_kitchen_order', {
       order: order,
       allOrders: kitchenOrders,
       isNewOrder: true,
-      newItems: order.items
+      newItems: order.items.map(i => ({ ...i.toObject(), kitchenStatus: i.status }))
     });
     socketService.emitToRole(restaurantId.toString(), 'cook', 'kitchen_orders_updated', kitchenOrders);
   } catch (err) {
