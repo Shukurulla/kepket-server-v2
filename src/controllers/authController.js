@@ -9,12 +9,17 @@ const { asyncHandler, AppError } = require('../middleware/errorHandler');
 const login = asyncHandler(async (req, res) => {
   const { phone, password } = req.body;
 
+  console.log('=== LOGIN ATTEMPT ===');
+  console.log('Phone:', phone);
+
   if (!phone || !password) {
     throw new AppError('Telefon va parol kiritilishi shart', 400, 'VALIDATION_ERROR');
   }
 
   // Find user with password
   const user = await Staff.findByPhoneWithPassword(phone);
+
+  console.log('User found:', user ? `${user._id} (${user.phone})` : 'NOT FOUND');
 
   if (!user) {
     throw new AppError('Telefon yoki parol noto\'g\'ri', 401, 'INVALID_CREDENTIALS');
@@ -34,9 +39,23 @@ const login = asyncHandler(async (req, res) => {
     throw new AppError('Telefon yoki parol noto\'g\'ri', 401, 'INVALID_CREDENTIALS');
   }
 
-  // Get restaurant
-  const restaurant = await Restaurant.findById(user.restaurantId);
+  console.log('Password matched, finding restaurant:', user.restaurantId);
+
+  // Get restaurant (o'chirilgan restoranlarni ham tekshirish)
+  let restaurant = await Restaurant.findById(user.restaurantId);
+
+  // Agar topilmasa, o'chirilganlar orasidan qidirish
   if (!restaurant) {
+    restaurant = await Restaurant.findById(user.restaurantId).setOptions({ includeDeleted: true });
+    if (restaurant && restaurant.isDeleted) {
+      throw new AppError('Restoran o\'chirilgan', 403, 'RESTAURANT_DELETED');
+    }
+  }
+
+  console.log('Restaurant found:', restaurant ? restaurant.name : 'NOT FOUND');
+
+  if (!restaurant) {
+    console.error('Restaurant not found for ID:', user.restaurantId);
     throw new AppError('Restoran topilmadi', 404, 'RESTAURANT_NOT_FOUND');
   }
 

@@ -148,8 +148,20 @@ staffSchema.methods.toJSON = function() {
 };
 
 // Static: Find by phone with password
+// Telefon raqamni normalize qilib qidiradi (probel bilan va probelsiz)
 staffSchema.statics.findByPhoneWithPassword = function(phone) {
-  return this.findOne({ phone }).select('+password');
+  // Faqat raqamlar va + belgisini qoldirish
+  const normalizedPhone = phone.replace(/[\s\-\(\)]/g, '');
+
+  // Ikki formatda qidirish: probel bilan va probelsiz
+  return this.findOne({
+    $or: [
+      { phone: phone },
+      { phone: normalizedPhone },
+      // Regex bilan ham qidirish (raqamlar bo'yicha)
+      { phone: { $regex: normalizedPhone.replace(/\D/g, '').slice(-9) + '$' } }
+    ]
+  }).select('+password');
 };
 
 // Static: Find by role in restaurant
