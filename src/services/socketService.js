@@ -344,7 +344,8 @@ class SocketService {
             .map(i => ({
               ...i.toObject(),
               kitchenStatus: i.status,
-              name: i.foodId?.name || i.foodName
+              name: i.foodId?.name || i.foodName,
+              categoryId: i.foodId?.categoryId?.toString() || null
             }));
           return {
             _id: o._id,
@@ -434,7 +435,8 @@ class SocketService {
             .map(i => ({
               ...i.toObject(),
               kitchenStatus: i.status,
-              name: i.foodId?.name || i.foodName
+              name: i.foodId?.name || i.foodName,
+              categoryId: i.foodId?.categoryId?.toString() || null
             }));
           return {
             _id: o._id,

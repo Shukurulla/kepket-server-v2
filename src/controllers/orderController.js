@@ -169,13 +169,31 @@ const createOrder = asyncHandler(async (req, res) => {
 
   // Agar tableId bo'lsa va forceNewOrder false bo'lsa, mavjud to'lanmagan orderni qidirish
   if (tableId && !forceNewOrder && orderType === 'dine-in') {
-    // Shu stol uchun to'lanmagan order bor-yo'qligini tekshirish
-    const existingOrder = await Order.findOne({
-      restaurantId,
-      tableId,
-      isPaid: false,
-      status: { $nin: ['paid', 'cancelled'] }
-    });
+    // Avval table'ning activeOrderId sini tekshirish - eng ishonchli usul
+    const table = await Table.findById(tableId);
+    let existingOrder = null;
+
+    if (table && table.activeOrderId) {
+      // Table'da aktiv order bor - uni olish
+      existingOrder = await Order.findOne({
+        _id: table.activeOrderId,
+        restaurantId,
+        isPaid: false,
+        isDeleted: { $ne: true },
+        status: { $nin: ['paid', 'cancelled'] }
+      });
+    }
+
+    // Agar table'da activeOrderId yo'q bo'lsa, lekin to'lanmagan order bo'lishi mumkin
+    if (!existingOrder) {
+      existingOrder = await Order.findOne({
+        restaurantId,
+        tableId,
+        isPaid: false,
+        isDeleted: { $ne: true },
+        status: { $nin: ['paid', 'cancelled'] }
+      }).sort({ createdAt: -1 }); // Eng oxirgi orderni olish
+    }
 
     if (existingOrder) {
       // Mavjud orderga itemlarni qo'shish
@@ -190,6 +208,14 @@ const createOrder = asyncHandler(async (req, res) => {
 
       await existingOrder.save();
       order = existingOrder;
+
+      // Table'ning activeOrderId sini yangilash (agar yo'q bo'lsa)
+      if (table && !table.activeOrderId) {
+        await Table.findByIdAndUpdate(tableId, {
+          status: 'occupied',
+          activeOrderId: order._id
+        });
+      }
 
       // Populate for response
       await order.populate('tableId', 'title tableNumber number');
@@ -261,7 +287,8 @@ const createOrder = asyncHandler(async (req, res) => {
           ...i.toObject(),
           kitchenStatus: i.status,
           name: i.foodId?.name || i.foodName,
-          requireDoubleConfirmation: i.foodId?.requireDoubleConfirmation || false
+          requireDoubleConfirmation: i.foodId?.requireDoubleConfirmation || false,
+          categoryId: i.foodId?.categoryId?.toString() || null
         }));
       return {
         _id: o._id,
@@ -409,7 +436,8 @@ const deleteOrder = asyncHandler(async (req, res) => {
           ...i.toObject(),
           kitchenStatus: i.status,
           name: i.foodId?.name || i.foodName,
-          requireDoubleConfirmation: i.foodId?.requireDoubleConfirmation || false
+          requireDoubleConfirmation: i.foodId?.requireDoubleConfirmation || false,
+          categoryId: i.foodId?.categoryId?.toString() || null
         }));
       return {
         _id: o._id,
@@ -544,7 +572,8 @@ const deleteItem = asyncHandler(async (req, res) => {
           ...i.toObject(),
           kitchenStatus: i.status,
           name: i.foodId?.name || i.foodName,
-          requireDoubleConfirmation: i.foodId?.requireDoubleConfirmation || false
+          requireDoubleConfirmation: i.foodId?.requireDoubleConfirmation || false,
+          categoryId: i.foodId?.categoryId?.toString() || null
         }));
       return {
         _id: o._id,
@@ -634,7 +663,8 @@ const updateItemQuantity = asyncHandler(async (req, res) => {
           ...i.toObject(),
           kitchenStatus: i.status,
           name: i.foodId?.name || i.foodName,
-          requireDoubleConfirmation: i.foodId?.requireDoubleConfirmation || false
+          requireDoubleConfirmation: i.foodId?.requireDoubleConfirmation || false,
+          categoryId: i.foodId?.categoryId?.toString() || null
         }));
       return {
         _id: o._id,
@@ -896,7 +926,8 @@ const approveOrder = asyncHandler(async (req, res) => {
           ...i.toObject(),
           kitchenStatus: i.status,
           name: i.foodId?.name || i.foodName,
-          requireDoubleConfirmation: i.foodId?.requireDoubleConfirmation || false
+          requireDoubleConfirmation: i.foodId?.requireDoubleConfirmation || false,
+          categoryId: i.foodId?.categoryId?.toString() || null
         }));
       return {
         _id: o._id,
@@ -1338,7 +1369,8 @@ const createSaboyOrder = asyncHandler(async (req, res) => {
           ...i.toObject(),
           kitchenStatus: i.status,
           name: i.foodId?.name || i.foodName,
-          requireDoubleConfirmation: i.foodId?.requireDoubleConfirmation || false
+          requireDoubleConfirmation: i.foodId?.requireDoubleConfirmation || false,
+          categoryId: i.foodId?.categoryId?.toString() || null
         }));
       return {
         _id: o._id,

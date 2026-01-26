@@ -54,7 +54,9 @@ exports.getOrders = async (req, res, next) => {
           // cook-web uses kitchenStatus, backend uses status
           kitchenStatus: item.status,
           name: item.foodId?.name || item.foodName,
-          requireDoubleConfirmation: item.foodId?.requireDoubleConfirmation || false
+          requireDoubleConfirmation: item.foodId?.requireDoubleConfirmation || false,
+          // categoryId ni saqlash - socket filter uchun kerak
+          categoryId: item.foodId?.categoryId?.toString() || null
         }));
 
       return {
@@ -213,7 +215,9 @@ exports.updateItemStatus = async (req, res, next) => {
           ...i.toObject(),
           kitchenStatus: i.status,
           name: i.foodId?.name || i.foodName,
-          requireDoubleConfirmation: i.foodId?.requireDoubleConfirmation || false
+          requireDoubleConfirmation: i.foodId?.requireDoubleConfirmation || false,
+          // categoryId ni saqlash - socket filter uchun kerak
+          categoryId: i.foodId?.categoryId?.toString() || null
         }));
       return {
         _id: o._id,
