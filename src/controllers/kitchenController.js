@@ -19,14 +19,18 @@ exports.getOrders = async (req, res, next) => {
       : ['pending', 'preparing', 'ready', 'served'];  // Default: hammasi (pending, preparing, ready, served)
 
     // Order status filter - ready/served items need broader order statuses
+    // Cancelled orderlarni ham qo'shish - cook panel uchun
     const orderStatuses = (status === 'ready' || status === 'served' || !status)
-      ? ['pending', 'approved', 'preparing', 'ready', 'served']
+      ? ['pending', 'approved', 'preparing', 'ready', 'served', 'cancelled']
       : ['pending', 'approved', 'preparing'];
 
     const orders = await Order.find({
       restaurantId,
       status: { $in: orderStatuses },
-      'items.status': { $in: kitchenStatuses }
+      $or: [
+        { 'items.status': { $in: kitchenStatuses } },
+        { status: 'cancelled' }  // Cancelled orderlar uchun itemlar status dan qat'iy nazar
+      ]
     })
       .populate('tableId', 'number floor title tableNumber')
       .populate('waiterId', 'firstName lastName')
@@ -35,9 +39,15 @@ exports.getOrders = async (req, res, next) => {
 
     // Transform to kitchen-friendly format (cook-web expects these field names)
     const kitchenOrders = orders.map(order => {
+      // Cancelled orderlar uchun barcha itemlarni ko'rsatish
+      const isCancelledOrder = order.status === 'cancelled';
+
       const pendingItems = order.items
         .map((item, originalIdx) => ({ item, originalIdx })) // Original index ni saqlash
         .filter(({ item }) => {
+          // Cancelled orderlar uchun barcha itemlarni ko'rsatish
+          if (isCancelledOrder) return true;
+
           // Status filter
           if (!kitchenStatuses.includes(item.status)) return false;
 
@@ -200,11 +210,14 @@ exports.updateItemStatus = async (req, res, next) => {
     await order.populate('waiterId', 'firstName lastName');
     await order.populate('items.foodId', 'name image categoryId requireDoubleConfirmation');
 
-    // Get all kitchen orders for cook-web (including ready and served items)
+    // Get all kitchen orders for cook-web (including ready, served, and cancelled items)
     const rawKitchenOrders = await Order.find({
       restaurantId,
-      status: { $in: ['pending', 'approved', 'preparing', 'ready', 'served'] },
-      'items.status': { $in: ['pending', 'preparing', 'ready', 'served'] }
+      status: { $in: ['pending', 'approved', 'preparing', 'ready', 'served', 'cancelled'] },
+      $or: [
+        { 'items.status': { $in: ['pending', 'preparing', 'ready', 'served'] } },
+        { status: 'cancelled' }  // Cancelled orderlar uchun
+      ]
     }).populate('items.foodId', 'name price categoryId image requireDoubleConfirmation')
       .populate('tableId', 'title tableNumber number')
       .populate('waiterId', 'firstName lastName')
@@ -212,9 +225,12 @@ exports.updateItemStatus = async (req, res, next) => {
 
     // Transform for cook-web format
     const kitchenOrders = rawKitchenOrders.map(o => {
+      // Cancelled orderlar uchun barcha itemlarni ko'rsatish
+      const isCancelledOrder = o.status === 'cancelled';
+
       const items = o.items
         .map((i, originalIdx) => ({ i, originalIdx })) // Original index ni saqlash
-        .filter(({ i }) => ['pending', 'preparing', 'ready', 'served'].includes(i.status))
+        .filter(({ i }) => isCancelledOrder || ['pending', 'preparing', 'ready', 'served'].includes(i.status))
         .map(({ i, originalIdx }) => ({
           ...i.toObject(),
           kitchenStatus: i.status,

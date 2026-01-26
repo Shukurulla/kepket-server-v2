@@ -11,6 +11,7 @@ const tableRoutes = require('./table.routes');
 const kitchenRoutes = require('./kitchen.routes');
 const notificationRoutes = require('./notification.routes');
 const reportRoutes = require('./report.routes');
+const hisobotRoutes = require('./hisobot.routes');
 const qrRoutes = require('./qr.routes');
 const superAdminRoutes = require('./superAdmin.routes');
 const systemRoutes = require('./system.routes');
@@ -26,6 +27,7 @@ router.use('/tables', tableRoutes);
 router.use('/kitchen', kitchenRoutes);
 router.use('/notifications', notificationRoutes);
 router.use('/reports', reportRoutes);
+router.use('/hisobot', hisobotRoutes);
 router.use('/qr', qrRoutes);
 router.use('/super-admin', superAdminRoutes);
 router.use('/system', systemRoutes);
@@ -56,6 +58,7 @@ router.get('/', (req, res) => {
       kitchen: '/api/kitchen',
       notifications: '/api/notifications',
       reports: '/api/reports',
+      hisobot: '/api/hisobot',
       shifts: '/api/shifts'
     }
   });

@@ -658,10 +658,11 @@ const addItems = asyncHandler(async (req, res) => {
     throw new AppError('Order topilmadi', 404, 'NOT_FOUND');
   }
 
-  // Add items (TZ 3.2: kim qo'shganini saqlash)
+  // Yangi itemlarni tayyorlash (categoryId bilan)
+  const orderItems = [];
   for (const item of items) {
     const food = await Food.findById(item.foodId);
-    order.addItem({
+    const newItem = {
       foodId: item.foodId,
       foodName: food ? food.foodName : item.foodName,
       categoryId: food ? food.categoryId : item.categoryId,
@@ -669,16 +670,90 @@ const addItems = asyncHandler(async (req, res) => {
       price: food ? food.price : item.price,
       addedBy: userId,
       addedByName: fullName
-    });
+    };
+    order.addItem(newItem);
+    orderItems.push(newItem);
   }
 
   await order.save();
 
+  // Populate for proper data
+  await order.populate('tableId', 'title tableNumber number');
+  await order.populate('waiterId', 'firstName lastName');
+
   emitOrderEvent(restaurantId.toString(), ORDER_EVENTS.UPDATED, {
     order,
     action: 'items_added',
-    newItems: items
+    newItems: orderItems
   });
+
+  // Cook uchun kitchen_orders_updated yuborish (kategoriya bo'yicha filter qilingan)
+  try {
+    const rawKitchenOrders = await Order.find({
+      restaurantId,
+      status: { $in: ['pending', 'approved', 'preparing', 'ready'] },
+      'items.status': { $in: ['pending', 'preparing', 'ready'] }
+    }).populate('items.foodId', 'name price categoryId image requireDoubleConfirmation')
+      .populate('tableId', 'title tableNumber number')
+      .populate('waiterId', 'firstName lastName')
+      .sort({ createdAt: -1 });
+
+    // Transform for cook-web format
+    const kitchenOrders = rawKitchenOrders.map(o => {
+      const items = o.items
+        .map((i, originalIdx) => ({ i, originalIdx }))
+        .filter(({ i }) => ['pending', 'preparing', 'ready'].includes(i.status) && !i.isDeleted)
+        .map(({ i, originalIdx }) => ({
+          ...i.toObject(),
+          kitchenStatus: i.status,
+          name: i.foodId?.name || i.foodName,
+          requireDoubleConfirmation: i.foodId?.requireDoubleConfirmation || false,
+          categoryId: i.foodId?.categoryId?.toString() || i.categoryId?.toString() || null,
+          originalIndex: originalIdx
+        }));
+      return {
+        _id: o._id,
+        orderId: o._id,
+        orderNumber: o.orderNumber,
+        orderType: o.orderType || 'dine-in',
+        saboyNumber: o.saboyNumber,
+        tableId: o.tableId,
+        tableName: o.orderType === 'saboy'
+          ? `Saboy #${o.saboyNumber || o.orderNumber}`
+          : (o.tableId?.title || o.tableName || `Stol ${o.tableId?.number || o.tableNumber || ''}`),
+        tableNumber: o.tableId?.number || o.tableNumber,
+        waiterId: o.waiterId,
+        waiterName: o.waiterId ? `${o.waiterId.firstName || ''} ${o.waiterId.lastName || ''}`.trim() : '',
+        items,
+        status: o.status,
+        createdAt: o.createdAt,
+        restaurantId: o.restaurantId
+      };
+    }).filter(o => o.items.length > 0);
+
+    // Yangi qo'shilgan itemlarni formatlash (categoryId bilan!)
+    const formattedNewItems = orderItems.map((item, idx) => ({
+      ...item,
+      kitchenStatus: 'pending',
+      categoryId: item.categoryId?.toString() || null,
+      originalIndex: order.items.length - orderItems.length + idx
+    }));
+
+    // Admin uchun barcha itemlar
+    socketService.emitToRole(restaurantId.toString(), 'admin', 'new_kitchen_order', {
+      order: order,
+      allOrders: kitchenOrders,
+      isNewOrder: false,
+      itemsAddedToExisting: true,
+      newItems: formattedNewItems
+    });
+
+    // Har bir cook uchun KATEGORIYA BO'YICHA filter qilingan
+    await socketService.emitFilteredNewKitchenOrderForAddedItems(restaurantId.toString(), order, kitchenOrders, formattedNewItems);
+    await socketService.emitFilteredKitchenOrders(restaurantId.toString(), kitchenOrders, 'kitchen_orders_updated');
+  } catch (err) {
+    console.error('Error sending kitchen orders after addItems:', err);
+  }
 
   res.json({
     success: true,

@@ -61,9 +61,14 @@ const emitOrderEvent = (restaurantId, eventType, data) => {
       socketService.emitToRole(restaurantId, 'cashier', 'order_updated', data);
       socketService.emitToRole(restaurantId, 'waiter', 'order_updated', data);
       socketService.emitToRole(restaurantId, 'admin', 'order_updated', data);
+      socketService.emitToRole(restaurantId, 'cook', 'order_updated', data);
       if (data.action === 'item_deleted' || data.action === 'item_quantity_changed') {
         socketService.emitToRole(restaurantId, 'cashier', 'order_item_deleted', data);
         socketService.emitToRole(restaurantId, 'waiter', 'order_item_deleted', data);
+      }
+      // Item bekor qilinganda cook panelga ham yuborish
+      if (data.action === 'item_cancelled') {
+        socketService.emitToRole(restaurantId, 'cook', 'order_item_cancelled', data);
       }
       break;
 
@@ -78,6 +83,14 @@ const emitOrderEvent = (restaurantId, eventType, data) => {
       socketService.emitToRole(restaurantId, 'waiter', 'order_paid', data);
       socketService.emitToRole(restaurantId, 'cashier', 'order_paid', data);
       socketService.emitToRole(restaurantId, 'admin', 'order_paid', data);
+      break;
+
+    case ORDER_EVENTS.REJECTED:
+      // Order bekor qilinganda barcha rollarga yuborish
+      socketService.emitToRole(restaurantId, 'cashier', 'order_cancelled', data);
+      socketService.emitToRole(restaurantId, 'waiter', 'order_cancelled', data);
+      socketService.emitToRole(restaurantId, 'admin', 'order_cancelled', data);
+      socketService.emitToRole(restaurantId, 'cook', 'order_cancelled', data);
       break;
 
     case ORDER_EVENTS.ITEM_READY:
