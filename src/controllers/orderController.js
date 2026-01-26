@@ -282,13 +282,15 @@ const createOrder = asyncHandler(async (req, res) => {
     // Transform for cook-web format
     const kitchenOrders = rawKitchenOrders.map(o => {
       const items = o.items
-        .filter(i => ['pending', 'preparing', 'ready'].includes(i.status))
-        .map(i => ({
+        .map((i, originalIdx) => ({ i, originalIdx }))
+        .filter(({ i }) => ['pending', 'preparing', 'ready'].includes(i.status))
+        .map(({ i, originalIdx }) => ({
           ...i.toObject(),
           kitchenStatus: i.status,
           name: i.foodId?.name || i.foodName,
           requireDoubleConfirmation: i.foodId?.requireDoubleConfirmation || false,
-          categoryId: i.foodId?.categoryId?.toString() || null
+          categoryId: i.foodId?.categoryId?.toString() || null,
+          originalIndex: originalIdx
         }));
       return {
         _id: o._id,
@@ -310,13 +312,16 @@ const createOrder = asyncHandler(async (req, res) => {
       };
     }).filter(o => o.items.length > 0);
 
-    socketService.emitToRole(restaurantId.toString(), 'cook', 'new_kitchen_order', {
+    // Admin uchun barcha itemlar
+    socketService.emitToRole(restaurantId.toString(), 'admin', 'new_kitchen_order', {
       order: order,
       allOrders: kitchenOrders,
       isNewOrder: isNewOrder,
       itemsAddedToExisting: !isNewOrder,
-      newItems: orderItems.map(i => ({ ...i, kitchenStatus: 'pending' }))
+      newItems: orderItems.map((i, idx) => ({ ...i, kitchenStatus: 'pending', originalIndex: idx }))
     });
+    // Har bir cook uchun filter qilingan
+    await socketService.emitFilteredNewKitchenOrder(restaurantId.toString(), order, kitchenOrders);
     await socketService.emitFilteredKitchenOrders(restaurantId.toString(), kitchenOrders, 'kitchen_orders_updated');
   } catch (err) {
     console.error('Error sending kitchen orders:', err);
@@ -435,13 +440,15 @@ const deleteOrder = asyncHandler(async (req, res) => {
 
     const kitchenOrders = rawKitchenOrders.map(o => {
       const items = o.items
-        .filter(i => ['pending', 'preparing', 'ready'].includes(i.status) && !i.isDeleted)
-        .map(i => ({
+        .map((i, originalIdx) => ({ i, originalIdx }))
+        .filter(({ i }) => ['pending', 'preparing', 'ready'].includes(i.status) && !i.isDeleted)
+        .map(({ i, originalIdx }) => ({
           ...i.toObject(),
           kitchenStatus: i.status,
           name: i.foodId?.name || i.foodName,
           requireDoubleConfirmation: i.foodId?.requireDoubleConfirmation || false,
-          categoryId: i.foodId?.categoryId?.toString() || null
+          categoryId: i.foodId?.categoryId?.toString() || null,
+          originalIndex: originalIdx
         }));
       return {
         _id: o._id,
@@ -575,13 +582,15 @@ const deleteItem = asyncHandler(async (req, res) => {
 
     const kitchenOrders = rawKitchenOrders.map(o => {
       const items = o.items
-        .filter(i => ['pending', 'preparing', 'ready'].includes(i.status) && !i.isDeleted)
-        .map(i => ({
+        .map((i, originalIdx) => ({ i, originalIdx }))
+        .filter(({ i }) => ['pending', 'preparing', 'ready'].includes(i.status) && !i.isDeleted)
+        .map(({ i, originalIdx }) => ({
           ...i.toObject(),
           kitchenStatus: i.status,
           name: i.foodId?.name || i.foodName,
           requireDoubleConfirmation: i.foodId?.requireDoubleConfirmation || false,
-          categoryId: i.foodId?.categoryId?.toString() || null
+          categoryId: i.foodId?.categoryId?.toString() || null,
+          originalIndex: originalIdx
         }));
       return {
         _id: o._id,
@@ -670,13 +679,15 @@ const updateItemQuantity = asyncHandler(async (req, res) => {
 
     const kitchenOrders = rawKitchenOrders.map(o => {
       const items = o.items
-        .filter(i => ['pending', 'preparing', 'ready'].includes(i.status) && !i.isDeleted)
-        .map(i => ({
+        .map((i, originalIdx) => ({ i, originalIdx }))
+        .filter(({ i }) => ['pending', 'preparing', 'ready'].includes(i.status) && !i.isDeleted)
+        .map(({ i, originalIdx }) => ({
           ...i.toObject(),
           kitchenStatus: i.status,
           name: i.foodId?.name || i.foodName,
           requireDoubleConfirmation: i.foodId?.requireDoubleConfirmation || false,
-          categoryId: i.foodId?.categoryId?.toString() || null
+          categoryId: i.foodId?.categoryId?.toString() || null,
+          originalIndex: originalIdx
         }));
       return {
         _id: o._id,
@@ -937,13 +948,15 @@ const approveOrder = asyncHandler(async (req, res) => {
     // Transform for cook-web format
     const kitchenOrders = rawKitchenOrders.map(o => {
       const items = o.items
-        .filter(i => ['pending', 'preparing', 'ready'].includes(i.status))
-        .map(i => ({
+        .map((i, originalIdx) => ({ i, originalIdx }))
+        .filter(({ i }) => ['pending', 'preparing', 'ready'].includes(i.status))
+        .map(({ i, originalIdx }) => ({
           ...i.toObject(),
           kitchenStatus: i.status,
           name: i.foodId?.name || i.foodName,
           requireDoubleConfirmation: i.foodId?.requireDoubleConfirmation || false,
-          categoryId: i.foodId?.categoryId?.toString() || null
+          categoryId: i.foodId?.categoryId?.toString() || null,
+          originalIndex: originalIdx
         }));
       return {
         _id: o._id,
@@ -965,12 +978,15 @@ const approveOrder = asyncHandler(async (req, res) => {
       };
     }).filter(o => o.items.length > 0);
 
-    socketService.emitToRole(restaurantId.toString(), 'cook', 'new_kitchen_order', {
+    // Admin uchun barcha itemlar
+    socketService.emitToRole(restaurantId.toString(), 'admin', 'new_kitchen_order', {
       order: order,
       allOrders: kitchenOrders,
       isNewOrder: true,
-      newItems: order.items.map(i => ({ ...i.toObject(), kitchenStatus: i.status }))
+      newItems: order.items.map((i, idx) => ({ ...i.toObject(), kitchenStatus: i.status, originalIndex: idx }))
     });
+    // Har bir cook uchun filter qilingan
+    await socketService.emitFilteredNewKitchenOrder(restaurantId.toString(), order, kitchenOrders);
     await socketService.emitFilteredKitchenOrders(restaurantId.toString(), kitchenOrders, 'kitchen_orders_updated');
   } catch (err) {
     console.error('Error sending kitchen orders:', err);
@@ -1384,13 +1400,15 @@ const createSaboyOrder = asyncHandler(async (req, res) => {
 
     const kitchenOrders = rawKitchenOrders.map(o => {
       const items = o.items
-        .filter(i => ['pending', 'preparing', 'ready'].includes(i.status))
-        .map(i => ({
+        .map((i, originalIdx) => ({ i, originalIdx }))
+        .filter(({ i }) => ['pending', 'preparing', 'ready'].includes(i.status))
+        .map(({ i, originalIdx }) => ({
           ...i.toObject(),
           kitchenStatus: i.status,
           name: i.foodId?.name || i.foodName,
           requireDoubleConfirmation: i.foodId?.requireDoubleConfirmation || false,
-          categoryId: i.foodId?.categoryId?.toString() || null
+          categoryId: i.foodId?.categoryId?.toString() || null,
+          originalIndex: originalIdx
         }));
       return {
         _id: o._id,
@@ -1410,13 +1428,16 @@ const createSaboyOrder = asyncHandler(async (req, res) => {
       };
     }).filter(o => o.items.length > 0);
 
-    socketService.emitToRole(restaurantId.toString(), 'cook', 'new_kitchen_order', {
+    // Admin uchun barcha itemlar
+    socketService.emitToRole(restaurantId.toString(), 'admin', 'new_kitchen_order', {
       order: order,
       allOrders: kitchenOrders,
       isNewOrder: true,
       isSaboy: true,
-      newItems: orderItems.map(i => ({ ...i, kitchenStatus: 'pending' }))
+      newItems: orderItems.map((i, idx) => ({ ...i, kitchenStatus: 'pending', originalIndex: idx }))
     });
+    // Har bir cook uchun filter qilingan
+    await socketService.emitFilteredNewKitchenOrder(restaurantId.toString(), order, kitchenOrders);
     await socketService.emitFilteredKitchenOrders(restaurantId.toString(), kitchenOrders, 'kitchen_orders_updated');
   } catch (err) {
     console.error('Error sending kitchen orders:', err);
@@ -1703,6 +1724,129 @@ const mergeOrders = asyncHandler(async (req, res) => {
   });
 });
 
+/**
+ * Process partial payment (pay selected items)
+ * POST /api/orders/:id/pay-items
+ */
+const processPartialPayment = asyncHandler(async (req, res) => {
+  const { id } = req.params;
+  const { restaurantId, id: userId, fullName } = req.user;
+  const { itemIds, paymentType, paymentSplit, comment } = req.body;
+
+  // Validatsiya
+  if (!itemIds || !Array.isArray(itemIds) || itemIds.length === 0) {
+    throw new AppError('Item IDlar kiritilishi shart', 400, 'VALIDATION_ERROR');
+  }
+
+  if (!paymentType) {
+    throw new AppError('To\'lov turi kiritilishi shart', 400, 'VALIDATION_ERROR');
+  }
+
+  const order = await Order.findOne({ _id: id, restaurantId })
+    .populate('tableId', 'title tableNumber');
+
+  if (!order) {
+    throw new AppError('Order topilmadi', 404, 'NOT_FOUND');
+  }
+
+  if (order.isPaid) {
+    throw new AppError('Order allaqachon to\'langan', 400, 'ALREADY_PAID');
+  }
+
+  // Partial payment ni amalga oshirish
+  const result = order.processPartialPayment(
+    itemIds,
+    paymentType,
+    userId,
+    fullName,
+    paymentSplit,
+    comment
+  );
+
+  await order.save();
+
+  // Populate for response
+  await order.populate('tableId', 'title tableNumber');
+  await order.populate('waiterId', 'firstName lastName');
+
+  // Agar barcha itemlar to'langan bo'lsa - stolni bo'shatish
+  if (result.allItemsPaid && order.tableId) {
+    await Table.findByIdAndUpdate(order.tableId, {
+      status: 'free',
+      activeOrderId: null
+    });
+  }
+
+  // Socket events
+  emitOrderEvent(restaurantId.toString(), ORDER_EVENTS.UPDATED, {
+    order,
+    action: 'partial_payment',
+    paidItemIds: itemIds,
+    allItemsPaid: result.allItemsPaid,
+    remainingTotal: result.remainingTotal
+  });
+
+  // Agar to'liq to'langan bo'lsa, PAID eventni ham yuborish
+  if (result.allItemsPaid) {
+    emitOrderEvent(restaurantId.toString(), ORDER_EVENTS.PAID, {
+      order,
+      paymentType: 'mixed'
+    });
+  }
+
+  res.json({
+    success: true,
+    message: result.allItemsPaid
+      ? 'Barcha taomlar to\'landi, stol bo\'shatildi'
+      : `${itemIds.length} ta taom to\'landi`,
+    data: {
+      order,
+      paymentSession: {
+        sessionId: result.sessionId,
+        paidItems: result.paidItems,
+        subtotal: result.subtotal,
+        serviceCharge: result.serviceCharge,
+        total: result.total,
+        paymentType: result.paymentType,
+        paidAt: result.paidAt
+      },
+      allItemsPaid: result.allItemsPaid,
+      remainingTotal: result.remainingTotal,
+      paidTotal: order.getPaidTotal(),
+      unpaidTotal: order.getUnpaidTotal()
+    }
+  });
+});
+
+/**
+ * Get unpaid items for an order
+ * GET /api/orders/:id/unpaid-items
+ */
+const getUnpaidItems = asyncHandler(async (req, res) => {
+  const { id } = req.params;
+  const { restaurantId } = req.user;
+
+  const order = await Order.findOne({ _id: id, restaurantId });
+
+  if (!order) {
+    throw new AppError('Order topilmadi', 404, 'NOT_FOUND');
+  }
+
+  const unpaidItems = order.getUnpaidItems();
+  const paidItems = order.getPaidItems();
+
+  res.json({
+    success: true,
+    data: {
+      unpaidItems,
+      paidItems,
+      unpaidTotal: order.getUnpaidTotal(),
+      paidTotal: order.getPaidTotal(),
+      allItemsPaid: order.areAllItemsPaid()
+    }
+  });
+});
+
 module.exports = {
   getOrders,
   getTodayOrders,
@@ -1729,5 +1873,8 @@ module.exports = {
   getArchivedOrders,
   getWaiterDailyIncome,
   getMyDailyIncome,
-  mergeOrders
+  mergeOrders,
+  // Partial payment
+  processPartialPayment,
+  getUnpaidItems
 };

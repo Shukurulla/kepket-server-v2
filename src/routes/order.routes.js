@@ -38,6 +38,10 @@ router.post('/:id/reject', requireRole('waiter', 'admin'), orderController.rejec
 router.post('/:id/pay', requireRole('cashier', 'admin'), orderController.processPayment);
 router.patch('/:id/waiter', requireRole('admin'), orderController.changeWaiter);
 
+// Partial payment (qisman to'lov)
+router.post('/:id/pay-items', requireRole('cashier', 'admin'), orderController.processPartialPayment);
+router.get('/:id/unpaid-items', orderController.getUnpaidItems);
+
 // Item actions
 router.post('/:id/items', orderController.addItems);
 router.delete('/:id/items/:itemId', orderController.deleteItem);

@@ -75,6 +75,24 @@ const orderItemSchema = new mongoose.Schema({
   deletedBy: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Staff'
+  },
+
+  // Payment tracking per item (Partial Payment)
+  isPaid: {
+    type: Boolean,
+    default: false
+  },
+  paidAt: Date,
+  paidBy: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Staff'
+  },
+  paidByName: String,
+  paymentSessionId: String,
+  itemPaymentType: {
+    type: String,
+    enum: ['cash', 'card', 'click', null],
+    default: null
   }
 }, { _id: true });
 
@@ -549,6 +567,129 @@ orderSchema.methods.transferToTable = function(newTableId, newWaiterId, newWaite
   }
 
   return this;
+};
+
+// ============== PARTIAL PAYMENT METHODS ==============
+
+// Method: Get unpaid items
+orderSchema.methods.getUnpaidItems = function() {
+  return this.items.filter(item =>
+    !item.isDeleted &&
+    item.status !== 'cancelled' &&
+    !item.isPaid
+  );
+};
+
+// Method: Get paid items
+orderSchema.methods.getPaidItems = function() {
+  return this.items.filter(item =>
+    !item.isDeleted &&
+    item.status !== 'cancelled' &&
+    item.isPaid
+  );
+};
+
+// Method: Check if all items are paid
+orderSchema.methods.areAllItemsPaid = function() {
+  const activeItems = this.items.filter(item =>
+    !item.isDeleted && item.status !== 'cancelled'
+  );
+  return activeItems.length > 0 && activeItems.every(item => item.isPaid);
+};
+
+// Method: Calculate unpaid total (with proportional service charge)
+orderSchema.methods.getUnpaidTotal = function() {
+  const unpaidItems = this.getUnpaidItems();
+  const subtotal = unpaidItems.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+
+  // Takeaway va saboy uchun xizmat haqi yo'q
+  if (this.orderType === 'takeaway' || this.orderType === 'saboy') {
+    return subtotal;
+  }
+
+  const serviceCharge = Math.round(subtotal * (this.serviceChargePercent / 100));
+  return subtotal + serviceCharge;
+};
+
+// Method: Calculate paid total
+orderSchema.methods.getPaidTotal = function() {
+  const paidItems = this.getPaidItems();
+  const subtotal = paidItems.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+
+  if (this.orderType === 'takeaway' || this.orderType === 'saboy') {
+    return subtotal;
+  }
+
+  const serviceCharge = Math.round(subtotal * (this.serviceChargePercent / 100));
+  return subtotal + serviceCharge;
+};
+
+// Method: Process partial payment (pay selected items)
+orderSchema.methods.processPartialPayment = function(itemIds, paymentType, paidById, paidByName, paymentSplit = null, comment = null) {
+  const now = new Date();
+  const sessionId = new mongoose.Types.ObjectId().toString();
+
+  // Get items to pay
+  const itemsToPay = this.items.filter(item =>
+    itemIds.includes(item._id.toString()) &&
+    !item.isDeleted &&
+    item.status !== 'cancelled' &&
+    !item.isPaid
+  );
+
+  if (itemsToPay.length === 0) {
+    throw new Error('To\'lanadigan item topilmadi');
+  }
+
+  // Calculate totals for these items
+  const subtotal = itemsToPay.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+  let serviceCharge = 0;
+
+  if (this.orderType !== 'takeaway' && this.orderType !== 'saboy') {
+    serviceCharge = Math.round(subtotal * (this.serviceChargePercent / 100));
+  }
+
+  const total = subtotal + serviceCharge;
+
+  // Mark items as paid
+  for (const item of itemsToPay) {
+    item.isPaid = true;
+    item.paidAt = now;
+    item.paidBy = paidById;
+    item.paidByName = paidByName;
+    item.paymentSessionId = sessionId;
+    item.itemPaymentType = paymentType;
+  }
+
+  // Check if all items are now paid
+  const allPaid = this.areAllItemsPaid();
+  if (allPaid) {
+    this.isPaid = true;
+    this.status = 'paid';
+    this.paidAt = now;
+    this.paidBy = paidById;
+    this.paymentType = 'mixed'; // Ko'p to'lov bo'lgani uchun
+  }
+
+  return {
+    sessionId,
+    paidItems: itemsToPay.map(item => ({
+      itemId: item._id,
+      foodName: item.foodName,
+      quantity: item.quantity,
+      price: item.price,
+      subtotal: item.price * item.quantity
+    })),
+    subtotal,
+    serviceCharge,
+    total,
+    paymentType,
+    paymentSplit,
+    allItemsPaid: allPaid,
+    remainingTotal: this.getUnpaidTotal(),
+    paidAt: now,
+    comment
+  };
 };
 
 // Static: Get today's orders

@@ -196,8 +196,10 @@ class SocketService {
 
     this.connectedUsers.set(cookId, socket.id);
 
+    // Update cook status to 'working' and isOnline to true
     await Staff.findByIdAndUpdate(cookId, {
       isOnline: true,
+      status: 'working',
       socketId: socket.id,
       lastSeenAt: new Date()
     });
@@ -687,11 +689,16 @@ class SocketService {
 
     // Har bir cook uchun filter qilingan orderlar
     try {
+      // Find cooks who are online (status check relaxed - working or undefined)
       const cooks = await Staff.find({
         restaurantId,
         role: 'cook',
-        status: 'working',
-        isOnline: true
+        isOnline: true,
+        $or: [
+          { status: 'working' },
+          { status: { $exists: false } },
+          { status: null }
+        ]
       }).select('_id assignedCategories');
 
       for (const cook of cooks) {
@@ -732,11 +739,16 @@ class SocketService {
     if (!this.io) return;
 
     try {
+      // Find cooks who are online (status check relaxed - working or undefined)
       const cooks = await Staff.find({
         restaurantId,
         role: 'cook',
-        status: 'working',
-        isOnline: true
+        isOnline: true,
+        $or: [
+          { status: 'working' },
+          { status: { $exists: false } },
+          { status: null }
+        ]
       }).select('_id assignedCategories');
 
       for (const cook of cooks) {
@@ -748,13 +760,19 @@ class SocketService {
 
         if (hasCategoryFilter) {
           // Filter newItems - faqat oshpazga biriktirilgan kategoriyalar
+          // Original index ni saqlash uchun map qilib, keyin filter qilish
           filteredNewItems = order.items
-            .filter(item => {
+            .map((item, idx) => ({ item, originalIndex: idx }))
+            .filter(({ item }) => {
               const itemCategoryId = item.categoryId?.toString() || item.foodId?.categoryId?.toString();
               if (!itemCategoryId) return false;
               return cookCategories.some(catId => catId.toString() === itemCategoryId);
             })
-            .map(i => ({ ...i.toObject ? i.toObject() : i, kitchenStatus: i.status }));
+            .map(({ item, originalIndex }) => ({
+              ...(item.toObject ? item.toObject() : item),
+              kitchenStatus: item.status || 'pending',
+              originalIndex
+            }));
 
           // Filter allOrders
           filteredAllOrders = allKitchenOrders.map(o => {
@@ -767,7 +785,11 @@ class SocketService {
           }).filter(o => o.items.length > 0);
         } else {
           // Agar kategoriya biriktirilmagan bo'lsa - barcha itemlar
-          filteredNewItems = order.items.map(i => ({ ...i.toObject ? i.toObject() : i, kitchenStatus: i.status }));
+          filteredNewItems = order.items.map((item, idx) => ({
+            ...(item.toObject ? item.toObject() : item),
+            kitchenStatus: item.status || 'pending',
+            originalIndex: idx
+          }));
           filteredAllOrders = allKitchenOrders;
         }
 
@@ -788,7 +810,11 @@ class SocketService {
         order: order,
         allOrders: allKitchenOrders,
         isNewOrder: true,
-        newItems: order.items.map(i => ({ ...i.toObject ? i.toObject() : i, kitchenStatus: i.status }))
+        newItems: order.items.map((item, idx) => ({
+          ...(item.toObject ? item.toObject() : item),
+          kitchenStatus: item.status || 'pending',
+          originalIndex: idx
+        }))
       });
     }
   }
