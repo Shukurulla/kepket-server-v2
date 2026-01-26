@@ -48,24 +48,32 @@ const getOrders = asyncHandler(async (req, res) => {
   if (isPaid !== undefined) filter.isPaid = isPaid === 'true';
   if (shiftId) filter.shiftId = shiftId;
 
-  // Date filter with time support
+  // Date filter with time support (Tashkent timezone UTC+5)
   if (startDate || endDate || date) {
-    const start = new Date(startDate || date || new Date());
-    const end = new Date(endDate || date || new Date());
+    const dateStr = startDate || date || new Date().toISOString().split('T')[0];
+    const endDateStr = endDate || date || new Date().toISOString().split('T')[0];
 
-    // Apply time if provided, otherwise use day boundaries
+    // Toshkent vaqtini UTC ga aylantirish funksiyasi
+    const createDateInTashkent = (dateString, hours = 0, minutes = 0, seconds = 0, ms = 0) => {
+      const d = new Date(dateString + 'T00:00:00.000Z');
+      d.setUTCHours(hours - 5, minutes, seconds, ms); // UTC+5 dan UTC ga
+      return d;
+    };
+
+    let start, end;
+
     if (startTime) {
       const [hours, minutes] = startTime.split(':').map(Number);
-      start.setHours(hours, minutes, 0, 0);
+      start = createDateInTashkent(dateStr, hours, minutes, 0, 0);
     } else {
-      start.setHours(0, 0, 0, 0);
+      start = createDateInTashkent(dateStr, 0, 0, 0, 0);
     }
 
     if (endTime) {
       const [hours, minutes] = endTime.split(':').map(Number);
-      end.setHours(hours, minutes, 59, 999);
+      end = createDateInTashkent(endDateStr, hours, minutes, 59, 999);
     } else {
-      end.setHours(23, 59, 59, 999);
+      end = createDateInTashkent(endDateStr, 23, 59, 59, 999);
     }
 
     filter.createdAt = { $gte: start, $lte: end };

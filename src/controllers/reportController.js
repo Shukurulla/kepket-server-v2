@@ -213,26 +213,41 @@ exports.getFoodReport = async (req, res, next) => {
     const { restaurantId } = req.user;
     const { startDate, endDate, categoryId, startTime, endTime } = req.query;
 
-    const start = startDate ? new Date(startDate) : new Date();
-    const end = endDate ? new Date(endDate) : new Date();
+    // Toshkent timezone offset (UTC+5)
+    const TASHKENT_OFFSET = 5 * 60; // minutlarda
+
+    // Sanani Toshkent vaqtida yaratish
+    const createDateInTashkent = (dateStr, hours = 0, minutes = 0, seconds = 0, ms = 0) => {
+      const date = new Date(dateStr + 'T00:00:00.000Z');
+      // Toshkent vaqtini UTC ga aylantirish
+      date.setUTCHours(hours - 5, minutes, seconds, ms);
+      return date;
+    };
+
+    let start, end;
 
     if (!startDate) {
+      start = new Date();
       start.setDate(start.getDate() - 30);
-      start.setHours(0, 0, 0, 0);
+      start = createDateInTashkent(start.toISOString().split('T')[0], 0, 0, 0, 0);
     } else if (startTime) {
-      // startTime format: "HH:mm"
       const [hours, minutes] = startTime.split(':').map(Number);
-      start.setHours(hours, minutes, 0, 0);
+      start = createDateInTashkent(startDate, hours, minutes, 0, 0);
     } else {
-      start.setHours(0, 0, 0, 0);
+      start = createDateInTashkent(startDate, 0, 0, 0, 0);
+    }
+
+    if (!endDate) {
+      end = new Date();
+    } else {
+      end = new Date(endDate + 'T00:00:00.000Z');
     }
 
     if (endTime) {
-      // endTime format: "HH:mm"
       const [hours, minutes] = endTime.split(':').map(Number);
-      end.setHours(hours, minutes, 59, 999);
+      end = createDateInTashkent(endDate || new Date().toISOString().split('T')[0], hours, minutes, 59, 999);
     } else {
-      end.setHours(23, 59, 59, 999);
+      end = createDateInTashkent(endDate || new Date().toISOString().split('T')[0], 23, 59, 59, 999);
     }
 
     const matchStage = {
