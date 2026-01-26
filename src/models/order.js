@@ -363,8 +363,8 @@ orderSchema.methods.recalculateTotals = function() {
   // Calculate subtotal
   this.subtotal = activeItems.reduce((sum, item) => sum + (item.price * item.quantity), 0);
 
-  // TZ 2.1: Olib ketish (takeaway) buyurtmalaridan xizmat haqi olinmaydi
-  if (this.orderType === 'takeaway') {
+  // TZ 2.1: Olib ketish (takeaway) va saboy buyurtmalaridan xizmat haqi olinmaydi
+  if (this.orderType === 'takeaway' || this.orderType === 'saboy') {
     this.serviceCharge = 0;
     this.serviceChargePercent = 0;
   } else {
