@@ -1,7 +1,22 @@
-const { Order, Table, Food, Notification } = require('../models');
+const { Order, Table, Food, Notification, Shift } = require('../models');
 const { asyncHandler, AppError } = require('../middleware/errorHandler');
 const { emitOrderEvent, ORDER_EVENTS, emitToUser, emitToRole } = require('../events/eventEmitter');
 const socketService = require('../services/socketService');
+
+/**
+ * Aktiv smenani tekshirish helper
+ */
+const checkActiveShift = async (restaurantId) => {
+  const activeShift = await Shift.getActiveShift(restaurantId);
+  if (!activeShift) {
+    throw new AppError(
+      'Aktiv smena yo\'q. Buyurtma yaratish uchun admin smenani ochishi kerak.',
+      400,
+      'NO_ACTIVE_SHIFT'
+    );
+  }
+  return activeShift;
+};
 
 /**
  * Get orders with filters
@@ -15,6 +30,7 @@ const getOrders = asyncHandler(async (req, res) => {
     tableId,
     isPaid,
     date,
+    shiftId,
     page = 1,
     limit = 50
   } = req.query;
@@ -26,6 +42,7 @@ const getOrders = asyncHandler(async (req, res) => {
   if (waiterId) filter.waiterId = waiterId;
   if (tableId) filter.tableId = tableId;
   if (isPaid !== undefined) filter.isPaid = isPaid === 'true';
+  if (shiftId) filter.shiftId = shiftId;
 
   // Date filter
   if (date) {
@@ -145,6 +162,9 @@ const createOrder = asyncHandler(async (req, res) => {
     forceNewOrder = false // Yangi order yaratishni majburlash uchun
   } = req.body;
 
+  // Aktiv smenani tekshirish
+  const activeShift = await checkActiveShift(restaurantId);
+
   // Validate items
   if (!items || items.length === 0) {
     throw new AppError('Kamida bitta taom kerak', 400, 'VALIDATION_ERROR');
@@ -230,6 +250,7 @@ const createOrder = asyncHandler(async (req, res) => {
 
     order = new Order({
       restaurantId,
+      shiftId: activeShift._id,
       orderNumber,
       orderType,
       tableId,
@@ -312,16 +333,30 @@ const createOrder = asyncHandler(async (req, res) => {
       };
     }).filter(o => o.items.length > 0);
 
+    // Yangi qo'shilgan itemlarni formatlash
+    const formattedNewItems = orderItems.map((i, idx) => ({
+      ...i,
+      kitchenStatus: 'pending',
+      originalIndex: order.items.length - orderItems.length + idx
+    }));
+
     // Admin uchun barcha itemlar
     socketService.emitToRole(restaurantId.toString(), 'admin', 'new_kitchen_order', {
       order: order,
       allOrders: kitchenOrders,
       isNewOrder: isNewOrder,
       itemsAddedToExisting: !isNewOrder,
-      newItems: orderItems.map((i, idx) => ({ ...i, kitchenStatus: 'pending', originalIndex: idx }))
+      newItems: formattedNewItems
     });
+
     // Har bir cook uchun filter qilingan
-    await socketService.emitFilteredNewKitchenOrder(restaurantId.toString(), order, kitchenOrders);
+    if (isNewOrder) {
+      // Yangi order - barcha itemlarni yuborish
+      await socketService.emitFilteredNewKitchenOrder(restaurantId.toString(), order, kitchenOrders);
+    } else {
+      // Mavjud orderga item qo'shildi - faqat yangi itemlarni yuborish
+      await socketService.emitFilteredNewKitchenOrderForAddedItems(restaurantId.toString(), order, kitchenOrders, formattedNewItems);
+    }
     await socketService.emitFilteredKitchenOrders(restaurantId.toString(), kitchenOrders, 'kitchen_orders_updated');
   } catch (err) {
     console.error('Error sending kitchen orders:', err);
@@ -1259,6 +1294,9 @@ const createPersonalOrder = asyncHandler(async (req, res) => {
   const { restaurantId, id: userId, fullName } = req.user;
   const { items, comment } = req.body;
 
+  // Aktiv smenani tekshirish
+  const activeShift = await checkActiveShift(restaurantId);
+
   if (!items || items.length === 0) {
     throw new AppError('Kamida bitta taom kerak', 400, 'VALIDATION_ERROR');
   }
@@ -1281,6 +1319,7 @@ const createPersonalOrder = asyncHandler(async (req, res) => {
 
   const order = new Order({
     restaurantId,
+    shiftId: activeShift._id,
     orderNumber,
     orderType: 'dine-in',
     items: orderItems,
@@ -1315,6 +1354,9 @@ const createPersonalOrder = asyncHandler(async (req, res) => {
 const createSaboyOrder = asyncHandler(async (req, res) => {
   const { restaurantId, id: userId, fullName } = req.user;
   const { items, saboyNumber, comment } = req.body;
+
+  // Aktiv smenani tekshirish
+  const activeShift = await checkActiveShift(restaurantId);
 
   if (!items || items.length === 0) {
     throw new AppError('Kamida bitta taom kerak', 400, 'VALIDATION_ERROR');
@@ -1368,6 +1410,7 @@ const createSaboyOrder = asyncHandler(async (req, res) => {
 
   const order = new Order({
     restaurantId,
+    shiftId: activeShift._id,
     orderNumber,
     orderType: 'saboy',
     saboyNumber: finalSaboyNumber,

@@ -14,6 +14,7 @@ const reportRoutes = require('./report.routes');
 const qrRoutes = require('./qr.routes');
 const superAdminRoutes = require('./superAdmin.routes');
 const systemRoutes = require('./system.routes');
+const shiftRoutes = require('./shift.routes');
 
 // API routes
 router.use('/auth', authRoutes);
@@ -28,6 +29,7 @@ router.use('/reports', reportRoutes);
 router.use('/qr', qrRoutes);
 router.use('/super-admin', superAdminRoutes);
 router.use('/system', systemRoutes);
+router.use('/shifts', shiftRoutes);
 
 // Health check
 router.get('/health', (req, res) => {
@@ -53,7 +55,8 @@ router.get('/', (req, res) => {
       tables: '/api/tables',
       kitchen: '/api/kitchen',
       notifications: '/api/notifications',
-      reports: '/api/reports'
+      reports: '/api/reports',
+      shifts: '/api/shifts'
     }
   });
 });

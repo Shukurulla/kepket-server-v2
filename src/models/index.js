@@ -6,6 +6,7 @@ const Table = require('./table');
 const Order = require('./order');
 const Notification = require('./notification');
 const SuperAdmin = require('./superAdmin');
+const Shift = require('./shift');
 
 module.exports = {
   Restaurant,
@@ -15,5 +16,6 @@ module.exports = {
   Table,
   Order,
   Notification,
-  SuperAdmin
+  SuperAdmin,
+  Shift
 };

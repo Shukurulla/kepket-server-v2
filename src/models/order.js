@@ -131,6 +131,25 @@ const orderSchema = new mongoose.Schema({
     index: true
   },
 
+  // Smena ID - buyurtma qaysi smenada yaratilganini ko'rsatadi
+  shiftId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Shift',
+    index: true,
+    default: null
+  },
+
+  // Smena o'tkazish (transfer) uchun
+  transferredFromShiftId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Shift',
+    default: null
+  },
+  transferredToShiftAt: {
+    type: Date,
+    default: null
+  },
+
   // Order identification
   orderNumber: {
     type: Number,
@@ -344,6 +363,8 @@ orderSchema.index({ restaurantId: 1, status: 1 });
 orderSchema.index({ restaurantId: 1, isPaid: 1 });
 orderSchema.index({ restaurantId: 1, waiterId: 1, isPaid: 1 });
 orderSchema.index({ restaurantId: 1, tableId: 1, isPaid: 1 });
+orderSchema.index({ restaurantId: 1, shiftId: 1 });
+orderSchema.index({ shiftId: 1, isPaid: 1 });
 
 // Virtual: Active items (non-deleted)
 orderSchema.virtual('activeItems').get(function() {

@@ -32,6 +32,16 @@ const TABLE_EVENTS = {
 };
 
 /**
+ * Shift Event Types
+ */
+const SHIFT_EVENTS = {
+  OPENED: 'shift:opened',
+  CLOSED: 'shift:closed',
+  UPDATED: 'shift:updated',
+  STATUS: 'shift:status'
+};
+
+/**
  * Emit order event to all relevant clients
  */
 const emitOrderEvent = (restaurantId, eventType, data) => {
@@ -117,13 +127,29 @@ const emitToRole = (restaurantId, role, event, data) => {
   socketService.emitToRole(restaurantId, role, event, data);
 };
 
+/**
+ * Emit shift event to all relevant clients
+ */
+const emitShiftEvent = (restaurantId, eventType, data) => {
+  // Barcha clientlarga yuborish
+  socketService.emitToRestaurant(restaurantId, eventType, data);
+
+  // Role-specific yuborish
+  socketService.emitToRole(restaurantId, 'admin', eventType, data);
+  socketService.emitToRole(restaurantId, 'cashier', eventType, data);
+  socketService.emitToRole(restaurantId, 'cook', eventType, data);
+  socketService.emitToRole(restaurantId, 'waiter', eventType, data);
+};
+
 module.exports = {
   ORDER_EVENTS,
   STAFF_EVENTS,
   TABLE_EVENTS,
+  SHIFT_EVENTS,
   emitOrderEvent,
   emitTableEvent,
   emitStaffEvent,
   emitToUser,
-  emitToRole
+  emitToRole,
+  emitShiftEvent
 };
