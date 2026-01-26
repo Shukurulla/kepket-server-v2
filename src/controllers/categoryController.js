@@ -154,8 +154,11 @@ exports.delete = async (req, res, next) => {
       });
     }
 
-    // Check if category has foods
-    const foodCount = await Food.countDocuments({ categoryId: id });
+    // Check if category has foods (faqat o'chirilmaganlarni tekshirish)
+    const foodCount = await Food.countDocuments({
+      categoryId: id,
+      isDeleted: { $ne: true }
+    });
     if (foodCount > 0) {
       return res.status(400).json({
         success: false,
