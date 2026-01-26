@@ -36,7 +36,8 @@ exports.getOrders = async (req, res, next) => {
     // Transform to kitchen-friendly format (cook-web expects these field names)
     const kitchenOrders = orders.map(order => {
       const pendingItems = order.items
-        .filter(item => {
+        .map((item, originalIdx) => ({ item, originalIdx })) // Original index ni saqlash
+        .filter(({ item }) => {
           // Status filter
           if (!kitchenStatuses.includes(item.status)) return false;
 
@@ -49,14 +50,16 @@ exports.getOrders = async (req, res, next) => {
 
           return true;
         })
-        .map(item => ({
+        .map(({ item, originalIdx }) => ({
           ...item.toObject(),
           // cook-web uses kitchenStatus, backend uses status
           kitchenStatus: item.status,
           name: item.foodId?.name || item.foodName,
           requireDoubleConfirmation: item.foodId?.requireDoubleConfirmation || false,
           // categoryId ni saqlash - socket filter uchun kerak
-          categoryId: item.foodId?.categoryId?.toString() || null
+          categoryId: item.foodId?.categoryId?.toString() || null,
+          // Original index - cook-web bu index ni ishlatadi item status o'zgartirish uchun
+          originalIndex: originalIdx
         }));
 
       return {
@@ -210,14 +213,17 @@ exports.updateItemStatus = async (req, res, next) => {
     // Transform for cook-web format
     const kitchenOrders = rawKitchenOrders.map(o => {
       const items = o.items
-        .filter(i => ['pending', 'preparing', 'ready', 'served'].includes(i.status))
-        .map(i => ({
+        .map((i, originalIdx) => ({ i, originalIdx })) // Original index ni saqlash
+        .filter(({ i }) => ['pending', 'preparing', 'ready', 'served'].includes(i.status))
+        .map(({ i, originalIdx }) => ({
           ...i.toObject(),
           kitchenStatus: i.status,
           name: i.foodId?.name || i.foodName,
           requireDoubleConfirmation: i.foodId?.requireDoubleConfirmation || false,
           // categoryId ni saqlash - socket filter uchun kerak
-          categoryId: i.foodId?.categoryId?.toString() || null
+          categoryId: i.foodId?.categoryId?.toString() || null,
+          // Original index - cook-web bu index ni ishlatadi
+          originalIndex: originalIdx
         }));
       return {
         _id: o._id,

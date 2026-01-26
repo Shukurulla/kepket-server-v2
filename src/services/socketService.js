@@ -340,12 +340,14 @@ class SocketService {
         // Transform for cook-web format
         const kitchenOrders = rawKitchenOrders.map(o => {
           const items = o.items
-            .filter(i => ['pending', 'preparing', 'ready'].includes(i.status))
-            .map(i => ({
+            .map((i, originalIdx) => ({ i, originalIdx })) // Original index ni saqlash
+            .filter(({ i }) => ['pending', 'preparing', 'ready'].includes(i.status))
+            .map(({ i, originalIdx }) => ({
               ...i.toObject(),
               kitchenStatus: i.status,
               name: i.foodId?.name || i.foodName,
-              categoryId: i.foodId?.categoryId?.toString() || null
+              categoryId: i.foodId?.categoryId?.toString() || null,
+              originalIndex: originalIdx
             }));
           return {
             _id: o._id,
@@ -367,13 +369,17 @@ class SocketService {
           };
         }).filter(o => o.items.length > 0);
 
-        // new_kitchen_order event - cook-web kutgan format
-        this.emitToRole(data.restaurantId, 'cook', 'new_kitchen_order', {
+        // new_kitchen_order event - har bir cook uchun filter qilingan
+        // Admin uchun barcha itemlar
+        this.emitToRole(data.restaurantId, 'admin', 'new_kitchen_order', {
           order: order,
           allOrders: kitchenOrders,
           isNewOrder: true,
-          newItems: order.items.map(i => ({ ...i.toObject(), kitchenStatus: i.status }))
+          newItems: order.items.map((i, idx) => ({ ...i.toObject(), kitchenStatus: i.status, originalIndex: idx }))
         });
+
+        // Har bir cook uchun filter qilingan newItems va allOrders
+        await this.emitFilteredNewKitchenOrder(data.restaurantId, order, kitchenOrders);
 
         // kitchen_orders_updated ham yuborish (har bir cook uchun filter qilingan)
         await this.emitFilteredKitchenOrders(data.restaurantId, kitchenOrders, 'kitchen_orders_updated');
@@ -435,12 +441,14 @@ class SocketService {
 
         const kitchenOrders = rawKitchenOrders.map(o => {
           const items = o.items
-            .filter(i => ['pending', 'preparing', 'ready', 'served'].includes(i.status))
-            .map(i => ({
+            .map((i, originalIdx) => ({ i, originalIdx })) // Original index ni saqlash
+            .filter(({ i }) => ['pending', 'preparing', 'ready', 'served'].includes(i.status))
+            .map(({ i, originalIdx }) => ({
               ...i.toObject(),
               kitchenStatus: i.status,
               name: i.foodId?.name || i.foodName,
-              categoryId: i.foodId?.categoryId?.toString() || null
+              categoryId: i.foodId?.categoryId?.toString() || null,
+              originalIndex: originalIdx
             }));
           return {
             _id: o._id,
@@ -713,6 +721,75 @@ class SocketService {
       console.error('Error emitting filtered kitchen orders:', err);
       // Fallback - barcha cook'larga yuborish
       this.emitToRole(restaurantId, 'cook', event, kitchenOrders);
+    }
+  }
+
+  /**
+   * Emit filtered new_kitchen_order event to each cook based on their assignedCategories
+   * newItems should only contain items from categories assigned to that cook
+   */
+  async emitFilteredNewKitchenOrder(restaurantId, order, allKitchenOrders) {
+    if (!this.io) return;
+
+    try {
+      const cooks = await Staff.find({
+        restaurantId,
+        role: 'cook',
+        status: 'working',
+        isOnline: true
+      }).select('_id assignedCategories');
+
+      for (const cook of cooks) {
+        const cookCategories = cook.assignedCategories || [];
+        const hasCategoryFilter = cookCategories.length > 0;
+
+        let filteredNewItems;
+        let filteredAllOrders;
+
+        if (hasCategoryFilter) {
+          // Filter newItems - faqat oshpazga biriktirilgan kategoriyalar
+          filteredNewItems = order.items
+            .filter(item => {
+              const itemCategoryId = item.categoryId?.toString() || item.foodId?.categoryId?.toString();
+              if (!itemCategoryId) return false;
+              return cookCategories.some(catId => catId.toString() === itemCategoryId);
+            })
+            .map(i => ({ ...i.toObject ? i.toObject() : i, kitchenStatus: i.status }));
+
+          // Filter allOrders
+          filteredAllOrders = allKitchenOrders.map(o => {
+            const filteredItems = o.items.filter(item => {
+              const itemCategoryId = item.foodId?.categoryId?.toString() || item.categoryId?.toString();
+              if (!itemCategoryId) return false;
+              return cookCategories.some(catId => catId.toString() === itemCategoryId);
+            });
+            return { ...o, items: filteredItems };
+          }).filter(o => o.items.length > 0);
+        } else {
+          // Agar kategoriya biriktirilmagan bo'lsa - barcha itemlar
+          filteredNewItems = order.items.map(i => ({ ...i.toObject ? i.toObject() : i, kitchenStatus: i.status }));
+          filteredAllOrders = allKitchenOrders;
+        }
+
+        // Faqat shu oshpazga tegishli itemlar bo'lsa yuborish
+        if (filteredNewItems.length > 0) {
+          this.emitToUser(cook._id.toString(), 'new_kitchen_order', {
+            order: order,
+            allOrders: filteredAllOrders,
+            isNewOrder: true,
+            newItems: filteredNewItems
+          });
+        }
+      }
+    } catch (err) {
+      console.error('Error emitting filtered new_kitchen_order:', err);
+      // Fallback - barcha cook'larga yuborish (lekin bu ideal emas)
+      this.emitToRole(restaurantId, 'cook', 'new_kitchen_order', {
+        order: order,
+        allOrders: allKitchenOrders,
+        isNewOrder: true,
+        newItems: order.items.map(i => ({ ...i.toObject ? i.toObject() : i, kitchenStatus: i.status }))
+      });
     }
   }
 }
