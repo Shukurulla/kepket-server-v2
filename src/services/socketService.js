@@ -84,6 +84,11 @@ class SocketService {
       await this.handleRejectOrder(socket, data);
     });
 
+    // Add items to existing order
+    socket.on('add_order_items', async (data) => {
+      await this.handleAddOrderItems(socket, data);
+    });
+
     // Bell/call waiter
     socket.on('call_waiter', async (data) => {
       await this.handleCallWaiter(socket, data);
@@ -548,6 +553,108 @@ class SocketService {
   }
 
   /**
+   * Handle add_order_items - new items added to existing order
+   */
+  async handleAddOrderItems(socket, data) {
+    try {
+      const { Order } = require('../models');
+      const { orderId, restaurantId, newItems, tableName, tableNumber, waiterName } = data;
+
+      console.log('add_order_items event received:', { orderId, restaurantId, newItemsCount: newItems?.length });
+
+      if (!orderId || !restaurantId || !newItems || newItems.length === 0) {
+        console.log('add_order_items: Missing required data');
+        return;
+      }
+
+      // Get the updated order
+      const order = await Order.findById(orderId)
+        .populate('items.foodId', 'name price categoryId image')
+        .populate('tableId', 'title tableNumber number')
+        .populate('waiterId', 'firstName lastName');
+
+      if (!order) {
+        console.log('add_order_items: Order not found:', orderId);
+        return;
+      }
+
+      // Get all kitchen orders
+      const rawKitchenOrders = await Order.find({
+        restaurantId,
+        status: { $in: ['pending', 'preparing', 'approved', 'ready'] },
+        'items.status': { $in: ['pending', 'preparing', 'ready'] }
+      }).populate('items.foodId', 'name price categoryId image')
+        .populate('tableId', 'title tableNumber number')
+        .populate('waiterId', 'firstName lastName')
+        .sort({ createdAt: -1 });
+
+      // Transform for cook-web format
+      const kitchenOrders = rawKitchenOrders.map(o => {
+        const items = o.items
+          .map((i, originalIdx) => ({ i, originalIdx }))
+          .filter(({ i }) => ['pending', 'preparing', 'ready'].includes(i.status))
+          .map(({ i, originalIdx }) => ({
+            ...i.toObject(),
+            kitchenStatus: i.status,
+            name: i.foodId?.name || i.foodName,
+            categoryId: i.foodId?.categoryId?.toString() || null,
+            originalIndex: originalIdx
+          }));
+        return {
+          _id: o._id,
+          orderId: o._id,
+          orderNumber: o.orderNumber,
+          orderType: o.orderType || 'dine-in',
+          saboyNumber: o.saboyNumber,
+          tableId: o.tableId,
+          tableName: o.orderType === 'saboy'
+            ? `Saboy #${o.saboyNumber || o.orderNumber}`
+            : (o.tableId?.title || o.tableName || `Stol ${o.tableId?.number || o.tableNumber || ''}`),
+          tableNumber: o.tableId?.number || o.tableNumber,
+          waiterId: o.waiterId,
+          waiterName: o.waiterId ? `${o.waiterId.firstName || ''} ${o.waiterId.lastName || ''}`.trim() : '',
+          items,
+          status: o.status,
+          createdAt: o.createdAt,
+          restaurantId: o.restaurantId
+        };
+      }).filter(o => o.items.length > 0);
+
+      // Format newItems for cook panel
+      const formattedNewItems = newItems.map((item, idx) => ({
+        foodId: item.foodId || item._id,
+        foodName: item.foodName || item.name,
+        quantity: item.quantity || 1,
+        price: item.price || 0,
+        status: 'pending',
+        kitchenStatus: 'pending',
+        originalIndex: order.items.length - newItems.length + idx
+      }));
+
+      console.log('add_order_items: Emitting to cooks, newItems:', formattedNewItems.length);
+
+      // Emit to admin
+      this.emitToRole(restaurantId, 'admin', 'new_kitchen_order', {
+        order: order,
+        allOrders: kitchenOrders,
+        isNewOrder: false,
+        newItems: formattedNewItems
+      });
+
+      // Emit to cooks (filtered by categories)
+      await this.emitFilteredNewKitchenOrderForAddedItems(restaurantId, order, kitchenOrders, formattedNewItems);
+
+      // Also emit kitchen_orders_updated
+      await this.emitFilteredKitchenOrders(restaurantId, kitchenOrders, 'kitchen_orders_updated');
+
+      console.log('add_order_items: Events emitted successfully');
+
+    } catch (error) {
+      console.error('Add order items error:', error);
+    }
+  }
+
+  /**
    * Handle call_waiter (bell)
    */
   async handleCallWaiter(socket, data) {
@@ -815,6 +922,77 @@ class SocketService {
           kitchenStatus: item.status || 'pending',
           originalIndex: idx
         }))
+      });
+    }
+  }
+
+  /**
+   * Emit filtered new_kitchen_order for added items (not new order)
+   * Similar to emitFilteredNewKitchenOrder but for added items to existing order
+   */
+  async emitFilteredNewKitchenOrderForAddedItems(restaurantId, order, allKitchenOrders, newItems) {
+    if (!this.io) return;
+
+    try {
+      const cooks = await Staff.find({
+        restaurantId,
+        role: 'cook',
+        isOnline: true,
+        $or: [
+          { status: 'working' },
+          { status: { $exists: false } },
+          { status: null }
+        ]
+      }).select('_id assignedCategories');
+
+      for (const cook of cooks) {
+        const cookCategories = cook.assignedCategories || [];
+        const hasCategoryFilter = cookCategories.length > 0;
+
+        let filteredNewItems;
+        let filteredAllOrders;
+
+        if (hasCategoryFilter) {
+          // Filter newItems by cook's categories
+          filteredNewItems = newItems.filter(item => {
+            const itemCategoryId = item.categoryId?.toString() || item.foodId?.categoryId?.toString();
+            if (!itemCategoryId) return false;
+            return cookCategories.some(catId => catId.toString() === itemCategoryId);
+          });
+
+          // Filter allOrders
+          filteredAllOrders = allKitchenOrders.map(o => {
+            const filteredItems = o.items.filter(item => {
+              const itemCategoryId = item.foodId?.categoryId?.toString() || item.categoryId?.toString();
+              if (!itemCategoryId) return false;
+              return cookCategories.some(catId => catId.toString() === itemCategoryId);
+            });
+            return { ...o, items: filteredItems };
+          }).filter(o => o.items.length > 0);
+        } else {
+          // No category filter - all items
+          filteredNewItems = newItems;
+          filteredAllOrders = allKitchenOrders;
+        }
+
+        // Only emit if there are relevant items for this cook
+        if (filteredNewItems.length > 0) {
+          this.emitToUser(cook._id.toString(), 'new_kitchen_order', {
+            order: order,
+            allOrders: filteredAllOrders,
+            isNewOrder: false,
+            newItems: filteredNewItems
+          });
+        }
+      }
+    } catch (err) {
+      console.error('Error emitting filtered new_kitchen_order for added items:', err);
+      // Fallback
+      this.emitToRole(restaurantId, 'cook', 'new_kitchen_order', {
+        order: order,
+        allOrders: allKitchenOrders,
+        isNewOrder: false,
+        newItems: newItems
       });
     }
   }
