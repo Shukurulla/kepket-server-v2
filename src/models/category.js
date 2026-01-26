@@ -9,6 +9,13 @@ const categorySchema = new mongoose.Schema({
     index: true
   },
 
+  parentId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Category',
+    default: null,
+    index: true
+  },
+
   title: {
     type: String,
     required: [true, 'Category title is required'],
@@ -59,6 +66,13 @@ categorySchema.virtual('foodCount', {
   localField: '_id',
   foreignField: 'categoryId',
   count: true
+});
+
+// Virtual: Children categories
+categorySchema.virtual('children', {
+  ref: 'Category',
+  localField: '_id',
+  foreignField: 'parentId'
 });
 
 // Static: Find active categories by restaurant

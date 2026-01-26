@@ -71,13 +71,24 @@ exports.create = async (req, res, next) => {
   try {
     const { restaurantId } = req.user;
     // Support both 'title' and 'name' for backward compatibility
-    const { title, name, description, image, order, sortOrder } = req.body;
+    const { title, name, description, image, order, sortOrder, parentId } = req.body;
     const categoryTitle = title || name;
+
+    // Verify parent category exists and belongs to same restaurant
+    if (parentId) {
+      const parentCategory = await Category.findOne({ _id: parentId, restaurantId });
+      if (!parentCategory) {
+        return res.status(400).json({
+          success: false,
+          message: 'Parent category not found'
+        });
+      }
+    }
 
     // Get max order if not provided
     let categoryOrder = order ?? sortOrder;
     if (categoryOrder === undefined) {
-      const maxOrder = await Category.findOne({ restaurantId })
+      const maxOrder = await Category.findOne({ restaurantId, parentId: parentId || null })
         .sort({ sortOrder: -1 })
         .select('sortOrder');
       categoryOrder = maxOrder ? maxOrder.sortOrder + 1 : 0;
@@ -88,7 +99,8 @@ exports.create = async (req, res, next) => {
       title: categoryTitle,
       description,
       image,
-      sortOrder: categoryOrder
+      sortOrder: categoryOrder,
+      parentId: parentId || null
     });
 
     // Emit socket event
@@ -151,6 +163,18 @@ exports.delete = async (req, res, next) => {
       return res.status(404).json({
         success: false,
         message: 'Category not found'
+      });
+    }
+
+    // Check if category has child categories
+    const childCount = await Category.countDocuments({
+      parentId: id,
+      isDeleted: { $ne: true }
+    });
+    if (childCount > 0) {
+      return res.status(400).json({
+        success: false,
+        message: `Cannot delete category with ${childCount} subcategories. Move or delete subcategories first.`
       });
     }
 
