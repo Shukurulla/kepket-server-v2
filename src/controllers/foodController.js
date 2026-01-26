@@ -18,9 +18,50 @@ exports.getAll = async (req, res, next) => {
       .populate('categoryId', 'title')
       .sort({ order: 1, foodName: 1 });
 
+    // Yangi kun uchun dailyOrderCount ni tekshirish va reset qilish
+    const now = new Date();
+    const foodsToUpdate = [];
+    const foodsData = foods.map(food => {
+      const foodObj = food.toObject();
+      const lastReset = food.lastOrderCountReset || new Date(0);
+
+      // Agar yangi kun bo'lsa, in-memory qiymatlarni to'g'rilash
+      if (lastReset.toDateString() !== now.toDateString()) {
+        foodObj.dailyOrderCount = 0;
+        // Agar avto stop-listda bo'lsa va avto stopped bo'lsa, uni ham reset
+        if (food.isInStopList && food.autoStoppedAt) {
+          foodObj.isInStopList = false;
+          foodObj.autoStoppedAt = null;
+          foodObj.autoStopReason = null;
+        }
+        // DB da ham yangilash uchun belgilab qo'yish
+        if (food.autoStopListEnabled) {
+          foodsToUpdate.push(food._id);
+        }
+      }
+
+      return foodObj;
+    });
+
+    // Background da yangi kun reset qilish (async, response kutmaydi)
+    if (foodsToUpdate.length > 0) {
+      Food.updateMany(
+        { _id: { $in: foodsToUpdate }, restaurantId },
+        {
+          $set: {
+            dailyOrderCount: 0,
+            lastOrderCountReset: now,
+            isInStopList: false,
+            autoStoppedAt: null,
+            autoStopReason: null
+          }
+        }
+      ).catch(err => console.error('Daily reset error:', err));
+    }
+
     res.json({
       success: true,
-      data: foods
+      data: foodsData
     });
   } catch (error) {
     next(error);
@@ -382,6 +423,9 @@ exports.getMenu = async (req, res, next) => {
     const categories = await Category.find({ restaurantId })
       .sort({ sortOrder: 1, title: 1 });
 
+    const now = new Date();
+    const foodsToUpdate = [];
+
     const menu = await Promise.all(
       categories.map(async (category) => {
         const foods = await Food.find({
@@ -389,16 +433,55 @@ exports.getMenu = async (req, res, next) => {
           isAvailable: true
         }).sort({ order: 1, foodName: 1 });
 
+        // Yangi kun uchun dailyOrderCount ni tekshirish
+        const foodsData = foods.map(food => {
+          const foodObj = food.toObject();
+          const lastReset = food.lastOrderCountReset || new Date(0);
+
+          // Agar yangi kun bo'lsa, in-memory qiymatlarni to'g'rilash
+          if (lastReset.toDateString() !== now.toDateString()) {
+            foodObj.dailyOrderCount = 0;
+            // Agar avto stop-listda bo'lsa va avto stopped bo'lsa, uni ham reset
+            if (food.isInStopList && food.autoStoppedAt) {
+              foodObj.isInStopList = false;
+              foodObj.autoStoppedAt = null;
+              foodObj.autoStopReason = null;
+            }
+            // DB da ham yangilash uchun belgilab qo'yish
+            if (food.autoStopListEnabled) {
+              foodsToUpdate.push(food._id);
+            }
+          }
+
+          return foodObj;
+        });
+
         return {
           _id: category._id,
           title: category.title,
           name: category.title, // For backward compatibility
           description: category.description,
           image: category.image,
-          foods
+          foods: foodsData
         };
       })
     );
+
+    // Background da yangi kun reset qilish (async, response kutmaydi)
+    if (foodsToUpdate.length > 0) {
+      Food.updateMany(
+        { _id: { $in: foodsToUpdate }, restaurantId },
+        {
+          $set: {
+            dailyOrderCount: 0,
+            lastOrderCountReset: now,
+            isInStopList: false,
+            autoStoppedAt: null,
+            autoStopReason: null
+          }
+        }
+      ).catch(err => console.error('Daily reset error:', err));
+    }
 
     // Filter out empty categories
     const menuWithFoods = menu.filter(cat => cat.foods.length > 0);
@@ -550,6 +633,173 @@ exports.bulkAddToStopList = async (req, res, next) => {
       success: true,
       message: `${foods.length} ta taom stop-listga qo'shildi`,
       data: foods
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// === Avto stop-list (kunlik limit asosida) ===
+
+// Taom uchun avto stop-list sozlamalarini yangilash
+exports.updateAutoStopSettings = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const { restaurantId } = req.user;
+    const { autoStopListEnabled, dailyOrderLimit } = req.body;
+
+    const food = await Food.findOne({ _id: id, restaurantId });
+
+    if (!food) {
+      return res.status(404).json({
+        success: false,
+        message: 'Taom topilmadi'
+      });
+    }
+
+    // Sozlamalarni yangilash
+    if (autoStopListEnabled !== undefined) {
+      food.autoStopListEnabled = autoStopListEnabled;
+    }
+    if (dailyOrderLimit !== undefined) {
+      food.dailyOrderLimit = Math.max(0, parseInt(dailyOrderLimit) || 0);
+    }
+
+    await food.save();
+    await food.populate('categoryId', 'title');
+
+    // Emit socket event
+    socketService.emitToRestaurant(restaurantId, 'food:updated', food);
+
+    res.json({
+      success: true,
+      message: 'Avto stop-list sozlamalari yangilandi',
+      data: {
+        _id: food._id,
+        foodName: food.foodName,
+        autoStopListEnabled: food.autoStopListEnabled,
+        dailyOrderLimit: food.dailyOrderLimit,
+        dailyOrderCount: food.dailyOrderCount,
+        remaining: Math.max(0, food.dailyOrderLimit - food.dailyOrderCount)
+      }
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// Bir nechta taom uchun avto stop-list sozlamalarini yangilash
+exports.bulkUpdateAutoStopSettings = async (req, res, next) => {
+  try {
+    const { restaurantId } = req.user;
+    const { foodIds, autoStopListEnabled, dailyOrderLimit } = req.body;
+
+    if (!Array.isArray(foodIds) || foodIds.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'foodIds array kerak'
+      });
+    }
+
+    const updateData = {};
+    if (autoStopListEnabled !== undefined) {
+      updateData.autoStopListEnabled = autoStopListEnabled;
+    }
+    if (dailyOrderLimit !== undefined) {
+      updateData.dailyOrderLimit = Math.max(0, parseInt(dailyOrderLimit) || 0);
+    }
+
+    await Food.updateMany(
+      { _id: { $in: foodIds }, restaurantId },
+      { $set: updateData }
+    );
+
+    const foods = await Food.find({ _id: { $in: foodIds } })
+      .populate('categoryId', 'title');
+
+    // Emit socket event
+    socketService.emitToRestaurant(restaurantId, 'foods:bulk-updated', foods);
+
+    res.json({
+      success: true,
+      message: `${foods.length} ta taom avto stop-list sozlamalari yangilandi`,
+      data: foods
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// Kunlik order countlarni reset qilish (manual)
+exports.resetDailyOrderCounts = async (req, res, next) => {
+  try {
+    const { restaurantId } = req.user;
+
+    const result = await Food.resetAllDailyOrderCounts(restaurantId);
+
+    // Emit socket event
+    socketService.emitToRestaurant(restaurantId, 'foods:daily-reset', result);
+
+    res.json({
+      success: true,
+      message: 'Barcha taomlarning kunlik buyurtma soni 0 ga tushirildi',
+      data: result
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// Limitga yaqinlashgan taomlarni olish
+exports.getFoodsNearLimit = async (req, res, next) => {
+  try {
+    const { restaurantId } = req.user;
+    const { threshold = 0.8 } = req.query;
+
+    const foods = await Food.getFoodsNearLimit(restaurantId, parseFloat(threshold));
+
+    res.json({
+      success: true,
+      data: foods.map(f => ({
+        _id: f._id,
+        foodName: f.foodName,
+        categoryId: f.categoryId,
+        dailyOrderLimit: f.dailyOrderLimit,
+        dailyOrderCount: f.dailyOrderCount,
+        remaining: Math.max(0, f.dailyOrderLimit - f.dailyOrderCount),
+        percentUsed: Math.round((f.dailyOrderCount / f.dailyOrderLimit) * 100)
+      })),
+      count: foods.length
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// Avto stop-list yoqilgan taomlar ro'yxati
+exports.getAutoStopEnabledFoods = async (req, res, next) => {
+  try {
+    const { restaurantId } = req.user;
+
+    const foods = await Food.find({
+      restaurantId,
+      autoStopListEnabled: true,
+      dailyOrderLimit: { $gt: 0 }
+    }).populate('categoryId', 'title').sort({ foodName: 1 });
+
+    res.json({
+      success: true,
+      data: foods.map(f => ({
+        _id: f._id,
+        foodName: f.foodName,
+        categoryId: f.categoryId,
+        dailyOrderLimit: f.dailyOrderLimit,
+        dailyOrderCount: f.dailyOrderCount,
+        remaining: Math.max(0, f.dailyOrderLimit - f.dailyOrderCount),
+        isInStopList: f.isInStopList,
+        autoStoppedAt: f.autoStoppedAt
+      })),
+      count: foods.length
     });
   } catch (error) {
     next(error);

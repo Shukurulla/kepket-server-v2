@@ -211,7 +211,7 @@ exports.getSalesReport = async (req, res, next) => {
 exports.getFoodReport = async (req, res, next) => {
   try {
     const { restaurantId } = req.user;
-    const { startDate, endDate, categoryId } = req.query;
+    const { startDate, endDate, categoryId, startTime, endTime } = req.query;
 
     const start = startDate ? new Date(startDate) : new Date();
     const end = endDate ? new Date(endDate) : new Date();
@@ -219,8 +219,21 @@ exports.getFoodReport = async (req, res, next) => {
     if (!startDate) {
       start.setDate(start.getDate() - 30);
       start.setHours(0, 0, 0, 0);
+    } else if (startTime) {
+      // startTime format: "HH:mm"
+      const [hours, minutes] = startTime.split(':').map(Number);
+      start.setHours(hours, minutes, 0, 0);
+    } else {
+      start.setHours(0, 0, 0, 0);
     }
-    end.setHours(23, 59, 59, 999);
+
+    if (endTime) {
+      // endTime format: "HH:mm"
+      const [hours, minutes] = endTime.split(':').map(Number);
+      end.setHours(hours, minutes, 59, 999);
+    } else {
+      end.setHours(23, 59, 59, 999);
+    }
 
     const matchStage = {
       restaurantId: new mongoose.Types.ObjectId(restaurantId),

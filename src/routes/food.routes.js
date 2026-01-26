@@ -17,7 +17,19 @@ router.get('/', foodController.getAll);
 // Get foods by category
 router.get('/category/:categoryId', foodController.getByCategory);
 
-// Get single food
+// === TZ 1.3, 2.2: Stop-list routes (admin va cashier) ===
+// MUHIM: Bu routelar /:id dan OLDIN bo'lishi kerak!
+router.get('/stoplist/all', requireRole('admin', 'cashier'), foodController.getStopList);
+router.post('/stoplist/bulk', requireRole('admin', 'cashier'), foodController.bulkAddToStopList);
+
+// === Avto stop-list (kunlik limit) routes ===
+// MUHIM: Bu routelar /:id dan OLDIN bo'lishi kerak!
+router.get('/auto-stop/enabled', requireRole('admin'), foodController.getAutoStopEnabledFoods);
+router.get('/auto-stop/near-limit', requireRole('admin', 'cashier'), foodController.getFoodsNearLimit);
+router.post('/auto-stop/reset-daily', requireRole('admin'), foodController.resetDailyOrderCounts);
+router.post('/auto-stop/bulk-settings', requireRole('admin'), foodController.bulkUpdateAutoStopSettings);
+
+// Get single food (MUHIM: static routelardan KEYIN)
 router.get('/:id', foodController.getById);
 
 // Create food (admin only) - with image upload
@@ -42,10 +54,11 @@ router.delete('/:id', requireRole('admin'), foodController.delete);
 // Restore food (admin only)
 router.post('/:id/restore', requireRole('admin'), foodController.restore);
 
-// === TZ 1.3, 2.2: Stop-list routes (admin va cashier) ===
-router.get('/stoplist/all', requireRole('admin', 'cashier'), foodController.getStopList);
-router.post('/stoplist/bulk', requireRole('admin', 'cashier'), foodController.bulkAddToStopList);
+// Stop-list routes with :id param
 router.post('/:id/stoplist/add', requireRole('admin', 'cashier'), foodController.addToStopList);
 router.post('/:id/stoplist/remove', requireRole('admin', 'cashier'), foodController.removeFromStopList);
+
+// Avto stop-list route with :id param
+router.patch('/:id/auto-stop', requireRole('admin'), foodController.updateAutoStopSettings);
 
 module.exports = router;

@@ -30,6 +30,10 @@ const getOrders = asyncHandler(async (req, res) => {
     tableId,
     isPaid,
     date,
+    startDate,
+    endDate,
+    startTime,
+    endTime,
     shiftId,
     page = 1,
     limit = 50
@@ -44,13 +48,27 @@ const getOrders = asyncHandler(async (req, res) => {
   if (isPaid !== undefined) filter.isPaid = isPaid === 'true';
   if (shiftId) filter.shiftId = shiftId;
 
-  // Date filter
-  if (date) {
-    const startOfDay = new Date(date);
-    startOfDay.setHours(0, 0, 0, 0);
-    const endOfDay = new Date(date);
-    endOfDay.setHours(23, 59, 59, 999);
-    filter.createdAt = { $gte: startOfDay, $lte: endOfDay };
+  // Date filter with time support
+  if (startDate || endDate || date) {
+    const start = new Date(startDate || date || new Date());
+    const end = new Date(endDate || date || new Date());
+
+    // Apply time if provided, otherwise use day boundaries
+    if (startTime) {
+      const [hours, minutes] = startTime.split(':').map(Number);
+      start.setHours(hours, minutes, 0, 0);
+    } else {
+      start.setHours(0, 0, 0, 0);
+    }
+
+    if (endTime) {
+      const [hours, minutes] = endTime.split(':').map(Number);
+      end.setHours(hours, minutes, 59, 999);
+    } else {
+      end.setHours(23, 59, 59, 999);
+    }
+
+    filter.createdAt = { $gte: start, $lte: end };
   }
 
   const orders = await Order.find(filter)
@@ -170,6 +188,78 @@ const createOrder = asyncHandler(async (req, res) => {
     throw new AppError('Kamida bitta taom kerak', 400, 'VALIDATION_ERROR');
   }
 
+  // === Stop-list va limit tekshiruvi ===
+  // Avval bir xil taomlarning miqdorini agregatsiya qilish
+  const foodQuantityMap = new Map(); // foodId -> { quantity, item }
+  for (const item of items) {
+    if (item.foodId) {
+      const foodIdStr = item.foodId.toString();
+      const qty = item.quantity || 1;
+      if (foodQuantityMap.has(foodIdStr)) {
+        foodQuantityMap.get(foodIdStr).quantity += qty;
+      } else {
+        foodQuantityMap.set(foodIdStr, { quantity: qty, item });
+      }
+    }
+  }
+
+  const unavailableFoods = [];
+  for (const [foodIdStr, { quantity: totalQty }] of foodQuantityMap) {
+    const food = await Food.findById(foodIdStr);
+    if (food) {
+      // Kunlik countni yangilash (yangi kun bo'lsa reset va saqlash)
+      await food.checkAndResetDailyCount(true);
+
+      // Stop-listda bo'lsa
+      if (food.isInStopList) {
+        unavailableFoods.push({
+          foodId: food._id,
+          foodName: food.foodName,
+          reason: food.stopListReason || food.autoStopReason || 'Stop-listda'
+        });
+        continue;
+      }
+
+      // Avto stop-list: limitga yetgan yoki yetib qolsa
+      if (food.autoStopListEnabled && food.dailyOrderLimit > 0) {
+        const remaining = food.dailyOrderLimit - food.dailyOrderCount;
+
+        if (remaining <= 0) {
+          unavailableFoods.push({
+            foodId: food._id,
+            foodName: food.foodName,
+            reason: `Kunlik limit tugagan (${food.dailyOrderLimit} ta)`
+          });
+        } else if (totalQty > remaining) {
+          unavailableFoods.push({
+            foodId: food._id,
+            foodName: food.foodName,
+            reason: `Faqat ${remaining} ta qolgan (${totalQty} ta so'ralgan)`
+          });
+        }
+      }
+
+      // Taom mavjud emasligini tekshirish
+      if (food.isAvailable === false) {
+        unavailableFoods.push({
+          foodId: food._id,
+          foodName: food.foodName,
+          reason: 'Taom mavjud emas'
+        });
+      }
+    }
+  }
+
+  // Agar mavjud bo'lmagan taomlar bo'lsa, xatolik qaytarish
+  if (unavailableFoods.length > 0) {
+    throw new AppError(
+      `Quyidagi taomlar buyurtma qilib bo'lmaydi: ${unavailableFoods.map(f => f.foodName).join(', ')}`,
+      400,
+      'FOOD_UNAVAILABLE',
+      { unavailableFoods }
+    );
+  }
+
   // Prepare items with food details (TZ 3.2: kim qo'shganini saqlash)
   const orderItems = await Promise.all(items.map(async (item) => {
     const food = await Food.findById(item.foodId);
@@ -279,6 +369,36 @@ const createOrder = asyncHandler(async (req, res) => {
         activeOrderId: order._id
       });
     }
+  }
+
+  // === Avto stop-list: Food kunlik order countni increment qilish ===
+  const autoStoppedFoods = [];
+  try {
+    for (const item of orderItems) {
+      if (item.foodId) {
+        const food = await Food.findById(item.foodId);
+        if (food) {
+          const result = await food.incrementDailyOrderCount(item.quantity || 1);
+          if (result.autoStopped) {
+            autoStoppedFoods.push({
+              foodId: food._id,
+              foodName: food.foodName,
+              reason: food.autoStopReason
+            });
+          }
+        }
+      }
+    }
+
+    // Agar biror ovqat avto stop-listga tushgan bo'lsa, socket orqali xabar berish
+    if (autoStoppedFoods.length > 0) {
+      socketService.emitToRestaurant(restaurantId.toString(), 'foods:auto_stopped', {
+        foods: autoStoppedFoods,
+        message: `${autoStoppedFoods.length} ta ovqat limitga yetgani uchun stop-listga tushdi`
+      });
+    }
+  } catch (err) {
+    console.error('Error updating food daily order counts:', err);
   }
 
   // Emit real-time event
@@ -1301,6 +1421,46 @@ const createPersonalOrder = asyncHandler(async (req, res) => {
     throw new AppError('Kamida bitta taom kerak', 400, 'VALIDATION_ERROR');
   }
 
+  // === Stop-list va limit tekshiruvi (agregatsiya bilan) ===
+  const foodQuantityMap = new Map();
+  for (const item of items) {
+    if (item.foodId) {
+      const foodIdStr = item.foodId.toString();
+      const qty = item.quantity || 1;
+      if (foodQuantityMap.has(foodIdStr)) {
+        foodQuantityMap.get(foodIdStr).quantity += qty;
+      } else {
+        foodQuantityMap.set(foodIdStr, { quantity: qty });
+      }
+    }
+  }
+
+  const unavailableFoods = [];
+  for (const [foodIdStr, { quantity: totalQty }] of foodQuantityMap) {
+    const food = await Food.findById(foodIdStr);
+    if (food) {
+      await food.checkAndResetDailyCount(true);
+      if (food.isInStopList) {
+        unavailableFoods.push({ foodId: food._id, foodName: food.foodName, reason: food.stopListReason || 'Stop-listda' });
+        continue;
+      }
+      if (food.autoStopListEnabled && food.dailyOrderLimit > 0) {
+        const remaining = food.dailyOrderLimit - food.dailyOrderCount;
+        if (remaining <= 0) {
+          unavailableFoods.push({ foodId: food._id, foodName: food.foodName, reason: 'Kunlik limit tugagan' });
+        } else if (totalQty > remaining) {
+          unavailableFoods.push({ foodId: food._id, foodName: food.foodName, reason: `Faqat ${remaining} ta qolgan (${totalQty} ta so'ralgan)` });
+        }
+      }
+      if (food.isAvailable === false) {
+        unavailableFoods.push({ foodId: food._id, foodName: food.foodName, reason: 'Taom mavjud emas' });
+      }
+    }
+  }
+  if (unavailableFoods.length > 0) {
+    throw new AppError(`Quyidagi taomlar buyurtma qilib bo'lmaydi: ${unavailableFoods.map(f => f.foodName).join(', ')}`, 400, 'FOOD_UNAVAILABLE', { unavailableFoods });
+  }
+
   // Prepare items
   const orderItems = await Promise.all(items.map(async (item) => {
     const food = await Food.findById(item.foodId);
@@ -1360,6 +1520,46 @@ const createSaboyOrder = asyncHandler(async (req, res) => {
 
   if (!items || items.length === 0) {
     throw new AppError('Kamida bitta taom kerak', 400, 'VALIDATION_ERROR');
+  }
+
+  // === Stop-list va limit tekshiruvi (agregatsiya bilan) ===
+  const foodQuantityMap = new Map();
+  for (const item of items) {
+    if (item.foodId) {
+      const foodIdStr = item.foodId.toString();
+      const qty = item.quantity || 1;
+      if (foodQuantityMap.has(foodIdStr)) {
+        foodQuantityMap.get(foodIdStr).quantity += qty;
+      } else {
+        foodQuantityMap.set(foodIdStr, { quantity: qty });
+      }
+    }
+  }
+
+  const unavailableFoods = [];
+  for (const [foodIdStr, { quantity: totalQty }] of foodQuantityMap) {
+    const food = await Food.findById(foodIdStr);
+    if (food) {
+      await food.checkAndResetDailyCount(true);
+      if (food.isInStopList) {
+        unavailableFoods.push({ foodId: food._id, foodName: food.foodName, reason: food.stopListReason || 'Stop-listda' });
+        continue;
+      }
+      if (food.autoStopListEnabled && food.dailyOrderLimit > 0) {
+        const remaining = food.dailyOrderLimit - food.dailyOrderCount;
+        if (remaining <= 0) {
+          unavailableFoods.push({ foodId: food._id, foodName: food.foodName, reason: 'Kunlik limit tugagan' });
+        } else if (totalQty > remaining) {
+          unavailableFoods.push({ foodId: food._id, foodName: food.foodName, reason: `Faqat ${remaining} ta qolgan (${totalQty} ta so'ralgan)` });
+        }
+      }
+      if (food.isAvailable === false) {
+        unavailableFoods.push({ foodId: food._id, foodName: food.foodName, reason: 'Taom mavjud emas' });
+      }
+    }
+  }
+  if (unavailableFoods.length > 0) {
+    throw new AppError(`Quyidagi taomlar buyurtma qilib bo'lmaydi: ${unavailableFoods.map(f => f.foodName).join(', ')}`, 400, 'FOOD_UNAVAILABLE', { unavailableFoods });
   }
 
   // Validate saboyNumber

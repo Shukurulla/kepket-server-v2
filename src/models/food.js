@@ -83,7 +83,28 @@ const foodSchema = new mongoose.Schema({
   orderCount: {
     type: Number,
     default: 0
-  }
+  },
+
+  // === Avto stop-list (kunlik limit asosida) ===
+  autoStopListEnabled: {
+    type: Boolean,
+    default: false
+  },
+  dailyOrderLimit: {
+    type: Number,
+    default: 0, // 0 = cheksiz
+    min: 0
+  },
+  dailyOrderCount: {
+    type: Number,
+    default: 0
+  },
+  lastOrderCountReset: {
+    type: Date,
+    default: Date.now
+  },
+  autoStoppedAt: Date, // Avto stop-list ga tushgan vaqti
+  autoStopReason: String // Avto stop sababi
 }, {
   timestamps: true,
   toJSON: { virtuals: true },
@@ -161,6 +182,135 @@ foodSchema.statics.getStopList = function(restaurantId) {
     restaurantId,
     isInStopList: true
   }).populate('categoryId', 'title').sort({ stoppedAt: -1 });
+};
+
+// === Avto stop-list metodlari ===
+
+/**
+ * Kunlik order countni increment qilish va limitni tekshirish
+ * @param {number} quantity - buyurtma miqdori
+ * @returns {object} { autoStopped: boolean, newCount: number }
+ */
+foodSchema.methods.incrementDailyOrderCount = async function(quantity = 1) {
+  // Avval kunlik countni reset qilish kerakmi tekshirish
+  await this.checkAndResetDailyCount();
+
+  this.dailyOrderCount += quantity;
+  this.orderCount += quantity; // Umumiy count ham
+
+  let autoStopped = false;
+
+  // Avto stop-list yoqilgan va limit belgilangan bo'lsa
+  if (this.autoStopListEnabled && this.dailyOrderLimit > 0) {
+    if (this.dailyOrderCount >= this.dailyOrderLimit && !this.isInStopList) {
+      // Limitga yetdi - avto stop-listga qo'shish
+      this.isInStopList = true;
+      this.autoStoppedAt = new Date();
+      this.autoStopReason = `Kunlik limit (${this.dailyOrderLimit} ta) tugadi`;
+      this.stopListReason = this.autoStopReason;
+      this.stoppedAt = new Date();
+      this.stoppedByName = 'Avtomatik';
+      autoStopped = true;
+    }
+  }
+
+  await this.save();
+
+  return {
+    autoStopped,
+    newCount: this.dailyOrderCount,
+    limit: this.dailyOrderLimit,
+    remaining: Math.max(0, this.dailyOrderLimit - this.dailyOrderCount)
+  };
+};
+
+/**
+ * Kunlik countni reset qilish kerakmi tekshirish (yangi kun bo'lsa)
+ * @param {boolean} saveIfChanged - o'zgarsa saqlasinmi (default: false)
+ * @returns {boolean} - o'zgargan bo'lsa true
+ */
+foodSchema.methods.checkAndResetDailyCount = async function(saveIfChanged = false) {
+  const now = new Date();
+  const lastReset = this.lastOrderCountReset || new Date(0);
+  let changed = false;
+
+  // Oxirgi reset boshqa kunda bo'lgan bo'lsa
+  if (lastReset.toDateString() !== now.toDateString()) {
+    this.dailyOrderCount = 0;
+    this.lastOrderCountReset = now;
+    changed = true;
+
+    // Agar avto stop-list sababli to'xtatilgan bo'lsa - qayta yoqish
+    if (this.isInStopList && this.autoStoppedAt) {
+      this.isInStopList = false;
+      this.autoStoppedAt = null;
+      this.autoStopReason = null;
+      this.resumedAt = now;
+      this.resumedByName = 'Avtomatik (yangi kun)';
+    }
+
+    // Agar save kerak bo'lsa
+    if (saveIfChanged) {
+      await this.save();
+    }
+  }
+
+  return changed;
+};
+
+/**
+ * Static: Barcha ovqatlarning kunlik countini reset qilish
+ */
+foodSchema.statics.resetAllDailyOrderCounts = async function(restaurantId) {
+  const now = new Date();
+
+  // Avto stop-listdan chiqarish
+  await this.updateMany(
+    {
+      restaurantId,
+      isInStopList: true,
+      autoStoppedAt: { $exists: true, $ne: null }
+    },
+    {
+      $set: {
+        isInStopList: false,
+        autoStoppedAt: null,
+        autoStopReason: null,
+        resumedAt: now,
+        resumedByName: 'Avtomatik (kunlik reset)'
+      }
+    }
+  );
+
+  // Barcha daily countlarni 0 ga tushirish
+  await this.updateMany(
+    { restaurantId },
+    {
+      $set: {
+        dailyOrderCount: 0,
+        lastOrderCountReset: now
+      }
+    }
+  );
+
+  return { success: true, resetAt: now };
+};
+
+/**
+ * Static: Limitga yaqinlashgan ovqatlarni olish
+ */
+foodSchema.statics.getFoodsNearLimit = function(restaurantId, threshold = 0.8) {
+  return this.find({
+    restaurantId,
+    autoStopListEnabled: true,
+    dailyOrderLimit: { $gt: 0 },
+    $expr: {
+      $gte: [
+        { $divide: ['$dailyOrderCount', '$dailyOrderLimit'] },
+        threshold
+      ]
+    }
+  }).populate('categoryId', 'title');
 };
 
 const Food = mongoose.model('Food', foodSchema);
