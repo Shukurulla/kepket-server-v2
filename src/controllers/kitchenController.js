@@ -62,7 +62,9 @@ exports.getOrders = async (req, res, next) => {
         orderId: order._id,
         orderNumber: order.orderNumber,
         tableId: order.tableId,
-        tableName: order.tableId?.title || order.tableName || `Stol ${order.tableId?.number || order.tableNumber || ''}`,
+        tableName: order.orderType === 'saboy'
+          ? `Saboy #${order.saboyNumber || order.orderNumber}`
+          : (order.tableId?.title || order.tableName || `Stol ${order.tableId?.number || order.tableNumber || ''}`),
         tableNumber: order.tableId?.number || order.tableNumber,
         waiterId: order.waiterId,
         waiterName: order.waiterId ? `${order.waiterId.firstName || ''} ${order.waiterId.lastName || ''}`.trim() : '',
@@ -70,7 +72,9 @@ exports.getOrders = async (req, res, next) => {
         status: order.status,
         createdAt: order.createdAt,
         notes: order.notes,
-        restaurantId: order.restaurantId
+        restaurantId: order.restaurantId,
+        orderType: order.orderType || 'dine-in',
+        saboyNumber: order.saboyNumber
       };
     }).filter(order => order.items.length > 0);
 
@@ -216,14 +220,18 @@ exports.updateItemStatus = async (req, res, next) => {
         orderId: o._id,
         orderNumber: o.orderNumber,
         tableId: o.tableId,
-        tableName: o.tableId?.title || o.tableName || `Stol ${o.tableId?.number || o.tableNumber || ''}`,
+        tableName: o.orderType === 'saboy'
+          ? `Saboy #${o.saboyNumber || o.orderNumber}`
+          : (o.tableId?.title || o.tableName || `Stol ${o.tableId?.number || o.tableNumber || ''}`),
         tableNumber: o.tableId?.number || o.tableNumber,
         waiterId: o.waiterId,
         waiterName: o.waiterId ? `${o.waiterId.firstName || ''} ${o.waiterId.lastName || ''}`.trim() : '',
         items,
         status: o.status,
         createdAt: o.createdAt,
-        restaurantId: o.restaurantId
+        restaurantId: o.restaurantId,
+        orderType: o.orderType || 'dine-in',
+        saboyNumber: o.saboyNumber
       };
     }).filter(o => o.items.length > 0);
 
