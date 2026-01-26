@@ -1304,6 +1304,7 @@ const createSaboyOrder = asyncHandler(async (req, res) => {
     orderNumber,
     orderType: 'saboy',
     saboyNumber: finalSaboyNumber,
+    tableName: `Saboy #${finalSaboyNumber}`,
     items: orderItems,
     waiterId: userId,
     waiterName: fullName,
