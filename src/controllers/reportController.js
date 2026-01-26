@@ -103,7 +103,7 @@ exports.getDashboard = async (req, res, next) => {
       {
         $project: {
           _id: 1,
-          name: '$food.name',
+          name: '$food.foodName',
           image: '$food.image',
           totalQuantity: 1,
           totalRevenue: 1
@@ -261,7 +261,7 @@ exports.getFoodReport = async (req, res, next) => {
       {
         $project: {
           _id: 1,
-          name: '$food.name',
+          name: '$food.foodName',
           image: '$food.image',
           price: '$food.price',
           categoryId: '$food.categoryId',
