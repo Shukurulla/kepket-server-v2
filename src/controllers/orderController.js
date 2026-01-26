@@ -1570,6 +1570,139 @@ const getMyDailyIncome = asyncHandler(async (req, res) => {
   });
 });
 
+/**
+ * Merge multiple orders into one
+ * POST /api/orders/merge
+ */
+const mergeOrders = asyncHandler(async (req, res) => {
+  const { restaurantId, id: userId, fullName } = req.user;
+  const { targetOrderId, sourceOrderIds } = req.body;
+
+  if (!targetOrderId) {
+    throw new AppError('Asosiy buyurtma ID kiritilishi shart', 400, 'VALIDATION_ERROR');
+  }
+
+  if (!sourceOrderIds || !Array.isArray(sourceOrderIds) || sourceOrderIds.length === 0) {
+    throw new AppError('Biriktiriladigan buyurtmalar ID lari kiritilishi shart', 400, 'VALIDATION_ERROR');
+  }
+
+  // Target orderni topish
+  const targetOrder = await Order.findOne({
+    _id: targetOrderId,
+    restaurantId,
+    isPaid: false,
+    isDeleted: { $ne: true },
+    status: { $nin: ['paid', 'cancelled'] }
+  });
+
+  if (!targetOrder) {
+    throw new AppError('Asosiy buyurtma topilmadi yoki to\'langan', 404, 'NOT_FOUND');
+  }
+
+  // Source orderlarni topish
+  const sourceOrders = await Order.find({
+    _id: { $in: sourceOrderIds },
+    restaurantId,
+    isPaid: false,
+    isDeleted: { $ne: true },
+    status: { $nin: ['paid', 'cancelled'] }
+  });
+
+  if (sourceOrders.length === 0) {
+    throw new AppError('Biriktiriladigan buyurtmalar topilmadi', 404, 'NOT_FOUND');
+  }
+
+  // Har bir source orderdan itemlarni target orderga qo'shish
+  const mergedItems = [];
+  const mergedOrderIds = [];
+  const freedTableIds = [];
+
+  for (const sourceOrder of sourceOrders) {
+    // Source orderdagi barcha aktiv itemlarni olish
+    const activeItems = sourceOrder.items.filter(item => !item.isDeleted && item.status !== 'cancelled');
+
+    for (const item of activeItems) {
+      // Itemni target orderga qo'shish
+      targetOrder.items.push({
+        foodId: item.foodId,
+        foodName: item.foodName,
+        categoryId: item.categoryId,
+        quantity: item.quantity,
+        price: item.price,
+        status: item.status,
+        readyQuantity: item.readyQuantity || 0,
+        addedAt: item.addedAt || new Date(),
+        addedBy: item.addedBy,
+        addedByName: item.addedByName,
+        // Qo'shimcha ma'lumot - qaysi orderdan kelgani
+        mergedFrom: sourceOrder._id
+      });
+
+      mergedItems.push({
+        foodName: item.foodName,
+        quantity: item.quantity,
+        fromOrder: sourceOrder.orderNumber
+      });
+    }
+
+    // Comment birlashtirish
+    if (sourceOrder.comment) {
+      targetOrder.comment = targetOrder.comment
+        ? `${targetOrder.comment}\n[Buyurtma #${sourceOrder.orderNumber}]: ${sourceOrder.comment}`
+        : `[Buyurtma #${sourceOrder.orderNumber}]: ${sourceOrder.comment}`;
+    }
+
+    // Source orderni o'chirish (soft delete)
+    sourceOrder.isDeleted = true;
+    sourceOrder.deletedAt = new Date();
+    sourceOrder.deletedBy = userId;
+    sourceOrder.deletedReason = `Buyurtma #${targetOrder.orderNumber} ga biriktirildi`;
+    await sourceOrder.save();
+
+    mergedOrderIds.push(sourceOrder._id);
+
+    // Source order stolini bo'shatish
+    if (sourceOrder.tableId) {
+      freedTableIds.push(sourceOrder.tableId);
+      await Table.findByIdAndUpdate(sourceOrder.tableId, {
+        status: 'free',
+        activeOrderId: null
+      });
+    }
+  }
+
+  // Target orderni saqlash
+  await targetOrder.save();
+
+  // Populate qilish
+  await targetOrder.populate('tableId', 'title tableNumber number');
+  await targetOrder.populate('waiterId', 'firstName lastName');
+
+  // Socket event yuborish
+  emitOrderEvent(restaurantId.toString(), ORDER_EVENTS.UPDATED, {
+    order: targetOrder,
+    action: 'orders_merged',
+    mergedOrderIds,
+    mergedItems
+  });
+
+  // O'chirilgan orderlar uchun event
+  for (const orderId of mergedOrderIds) {
+    emitOrderEvent(restaurantId.toString(), ORDER_EVENTS.DELETED, { orderId });
+  }
+
+  res.json({
+    success: true,
+    message: `${sourceOrders.length} ta buyurtma biriktirildi`,
+    data: {
+      order: targetOrder,
+      mergedOrderIds,
+      mergedItemsCount: mergedItems.length,
+      freedTableIds
+    }
+  });
+});
+
 module.exports = {
   getOrders,
   getTodayOrders,
@@ -1595,5 +1728,6 @@ module.exports = {
   createSaboyOrder,
   getArchivedOrders,
   getWaiterDailyIncome,
-  getMyDailyIncome
+  getMyDailyIncome,
+  mergeOrders
 };

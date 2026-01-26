@@ -17,6 +17,7 @@ router.get('/waiter-stats', orderController.getWaiterStats);
 // Special order types (BEFORE /:id to avoid route conflicts)
 router.post('/personal', requireRole('waiter'), orderController.createPersonalOrder);
 router.post('/saboy', requireRole('cashier', 'admin'), orderController.createSaboyOrder);
+router.post('/merge', requireRole('cashier', 'admin'), orderController.mergeOrders);
 
 // TZ 3.3: Arxivlangan buyurtmalar (kunlik)
 router.get('/archive/:date', orderController.getArchivedOrders);
