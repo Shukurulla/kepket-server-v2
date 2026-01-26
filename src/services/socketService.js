@@ -351,8 +351,12 @@ class SocketService {
             _id: o._id,
             orderId: o._id,
             orderNumber: o.orderNumber,
+            orderType: o.orderType || 'dine-in',
+            saboyNumber: o.saboyNumber,
             tableId: o.tableId,
-            tableName: o.tableId?.title || o.tableName || `Stol ${o.tableId?.number || o.tableNumber || ''}`,
+            tableName: o.orderType === 'saboy'
+              ? `Saboy #${o.saboyNumber || o.orderNumber}`
+              : (o.tableId?.title || o.tableName || `Stol ${o.tableId?.number || o.tableNumber || ''}`),
             tableNumber: o.tableId?.number || o.tableNumber,
             waiterId: o.waiterId,
             waiterName: o.waiterId ? `${o.waiterId.firstName || ''} ${o.waiterId.lastName || ''}`.trim() : '',
@@ -442,8 +446,12 @@ class SocketService {
             _id: o._id,
             orderId: o._id,
             orderNumber: o.orderNumber,
+            orderType: o.orderType || 'dine-in',
+            saboyNumber: o.saboyNumber,
             tableId: o.tableId,
-            tableName: o.tableId?.title || o.tableName || `Stol ${o.tableId?.number || o.tableNumber || ''}`,
+            tableName: o.orderType === 'saboy'
+              ? `Saboy #${o.saboyNumber || o.orderNumber}`
+              : (o.tableId?.title || o.tableName || `Stol ${o.tableId?.number || o.tableNumber || ''}`),
             tableNumber: o.tableId?.number || o.tableNumber,
             waiterId: o.waiterId,
             waiterName: o.waiterId ? `${o.waiterId.firstName || ''} ${o.waiterId.lastName || ''}`.trim() : '',
