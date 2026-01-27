@@ -38,7 +38,7 @@ const getOrders = asyncHandler(async (req, res) => {
     shiftId,
     allShifts, // Admin uchun barcha smenalardan ko'rish imkoniyati
     page = 1,
-    limit = 50
+    limit = 1000
   } = req.query;
 
   const filter = { restaurantId };
