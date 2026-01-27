@@ -7,6 +7,32 @@ class SocketService {
   constructor() {
     this.io = null;
     this.connectedUsers = new Map(); // staffId -> socketId
+    // Takroriy so'rovlarni oldini olish: key -> timestamp
+    this._recentEvents = new Map();
+    // Eskirgan yozuvlarni tozalash (har 60 soniyada)
+    setInterval(() => {
+      const now = Date.now();
+      for (const [key, timestamp] of this._recentEvents) {
+        if (now - timestamp > 30000) this._recentEvents.delete(key);
+      }
+    }, 60000);
+  }
+
+  /**
+   * Takroriy eventni tekshirish
+   * @param {string} key - unikal kalit
+   * @param {number} windowMs - bloklash oynasi (ms)
+   * @returns {boolean} true = takroriy (bloklanadi)
+   */
+  _isDuplicateEvent(key, windowMs = 5000) {
+    const now = Date.now();
+    const lastTime = this._recentEvents.get(key);
+    if (lastTime && (now - lastTime) < windowMs) {
+      console.log(`Socket: Duplicate event blocked: ${key} (${now - lastTime}ms ago)`);
+      return true;
+    }
+    this._recentEvents.set(key, now);
+    return false;
   }
 
   /**
@@ -297,6 +323,14 @@ class SocketService {
   async handlePostOrder(socket, data) {
     try {
       const { Order, Table, Shift } = require('../models');
+
+      // Takroriy order yaratishni bloklash
+      const staffId = socket.userId || data.waiterId || 'unknown';
+      const dedupeKey = `post_order:${staffId}:${data.tableId}:${(data.selectFoods || []).length}:${data.totalPrice}`;
+      if (this._isDuplicateEvent(dedupeKey)) {
+        console.log('handlePostOrder: Duplicate order blocked for', dedupeKey);
+        return;
+      }
 
       // MUHIM: Aktiv smenani tekshirish
       const activeShift = await Shift.getActiveShift(data.restaurantId);
@@ -593,6 +627,14 @@ class SocketService {
       const { orderId, restaurantId, newItems, tableName, tableNumber, waiterName, waiterId } = data;
 
       console.log('add_order_items event received:', { orderId, restaurantId, newItemsCount: newItems?.length });
+
+      // Takroriy item qo'shishni bloklash
+      const staffId = socket.userId || waiterId || 'unknown';
+      const dedupeKey = `add_items:${staffId}:${orderId}:${(newItems || []).length}`;
+      if (this._isDuplicateEvent(dedupeKey)) {
+        console.log('handleAddOrderItems: Duplicate add_items blocked for', dedupeKey);
+        return;
+      }
 
       if (!orderId || !restaurantId || !newItems || newItems.length === 0) {
         console.log('add_order_items: Missing required data');
