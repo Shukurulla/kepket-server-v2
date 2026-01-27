@@ -106,7 +106,7 @@ const getOrders = asyncHandler(async (req, res) => {
 
   const rawOrders = await Order.find(filter)
     .populate('waiterId', 'firstName lastName')
-    .populate('tableId', 'title tableNumber')
+    .populate('tableId', 'title tableNumber hasHourlyCharge hourlyChargeAmount')
     .sort({ createdAt: -1 })
     .skip((parseInt(page) - 1) * parseInt(limit))
     .limit(parseInt(limit));
@@ -185,7 +185,7 @@ const getTodayOrders = asyncHandler(async (req, res) => {
 
   const orders = await Order.find(filter)
     .populate('waiterId', 'firstName lastName')
-    .populate('tableId', 'title tableNumber')
+    .populate('tableId', 'title tableNumber hasHourlyCharge hourlyChargeAmount')
     .sort({ createdAt: -1 });
 
   // MUHIM: Qo'shimcha filter - shiftId bo'lmagan orderlarni chiqarib tashlash
