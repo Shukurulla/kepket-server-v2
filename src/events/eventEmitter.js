@@ -54,6 +54,7 @@ const emitOrderEvent = (restaurantId, eventType, data) => {
     case ORDER_EVENTS.CREATED:
       socketService.emitToRole(restaurantId, 'cashier', 'new_order', data);
       socketService.emitToRole(restaurantId, 'waiter', 'new_order', data);
+      socketService.emitToRole(restaurantId, 'admin', 'food_stats_updated', {});
       break;
 
     case ORDER_EVENTS.UPDATED:
@@ -62,6 +63,7 @@ const emitOrderEvent = (restaurantId, eventType, data) => {
       socketService.emitToRole(restaurantId, 'waiter', 'order_updated', data);
       socketService.emitToRole(restaurantId, 'admin', 'order_updated', data);
       socketService.emitToRole(restaurantId, 'cook', 'order_updated', data);
+      socketService.emitToRole(restaurantId, 'admin', 'food_stats_updated', {});
       if (data.action === 'item_deleted' || data.action === 'item_quantity_changed') {
         socketService.emitToRole(restaurantId, 'cashier', 'order_item_deleted', data);
         socketService.emitToRole(restaurantId, 'waiter', 'order_item_deleted', data);
@@ -83,6 +85,7 @@ const emitOrderEvent = (restaurantId, eventType, data) => {
       socketService.emitToRole(restaurantId, 'waiter', 'order_paid', data);
       socketService.emitToRole(restaurantId, 'cashier', 'order_paid', data);
       socketService.emitToRole(restaurantId, 'admin', 'order_paid', data);
+      socketService.emitToRole(restaurantId, 'cook', 'order_paid', data);
       break;
 
     case ORDER_EVENTS.REJECTED:

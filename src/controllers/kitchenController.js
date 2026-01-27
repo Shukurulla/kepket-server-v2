@@ -41,7 +41,7 @@ exports.getOrders = async (req, res, next) => {
     // Order status filter - ready/served items need broader order statuses
     // Cancelled orderlarni ham qo'shish - cook panel uchun
     const orderStatuses = (status === 'ready' || status === 'served' || !status)
-      ? ['pending', 'approved', 'preparing', 'ready', 'served', 'cancelled']
+      ? ['pending', 'approved', 'preparing', 'ready', 'served', 'paid', 'cancelled']
       : ['pending', 'approved', 'preparing'];
 
     // Filter bo'yicha - faqat aktiv smena buyurtmalari

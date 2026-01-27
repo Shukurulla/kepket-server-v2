@@ -794,8 +794,8 @@ const addItems = asyncHandler(async (req, res) => {
     // Kitchen orders filter
     const kitchenFilter = {
       restaurantId,
-      status: { $in: ['pending', 'approved', 'preparing', 'ready'] },
-      'items.status': { $in: ['pending', 'preparing', 'ready'] }
+      status: { $in: ['pending', 'approved', 'preparing', 'ready', 'served', 'paid'] },
+      'items.status': { $in: ['pending', 'preparing', 'ready', 'served'] }
     };
     // MUHIM: Aktiv smena yo'q bo'lsa, bo'sh data yuborish va query qilmaslik
     if (!activeShift) {
@@ -812,7 +812,7 @@ const addItems = asyncHandler(async (req, res) => {
       const kitchenOrders = rawKitchenOrders.map(o => {
         const items = o.items
           .map((i, originalIdx) => ({ i, originalIdx }))
-          .filter(({ i }) => ['pending', 'preparing', 'ready'].includes(i.status) && !i.isDeleted)
+          .filter(({ i }) => ['pending', 'preparing', 'ready', 'served'].includes(i.status) && !i.isDeleted)
           .map(({ i, originalIdx }) => ({
             ...i.toObject(),
             kitchenStatus: i.status,

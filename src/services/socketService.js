@@ -390,8 +390,8 @@ class SocketService {
         const rawKitchenOrders = await Order.find({
           restaurantId: data.restaurantId,
           shiftId: activeShift._id, // MUHIM: Faqat joriy smena buyurtmalari
-          status: { $in: ['pending', 'preparing', 'approved', 'ready'] },
-          'items.status': { $in: ['pending', 'preparing', 'ready'] }
+          status: { $in: ['pending', 'preparing', 'approved', 'ready', 'served', 'paid'] },
+          'items.status': { $in: ['pending', 'preparing', 'ready', 'served'] }
         }).populate('items.foodId', 'name price categoryId image')
           .populate('tableId', 'title tableNumber number')
           .populate('waiterId', 'firstName lastName')
@@ -401,7 +401,7 @@ class SocketService {
         const kitchenOrders = rawKitchenOrders.map(o => {
           const items = o.items
             .map((i, originalIdx) => ({ i, originalIdx })) // Original index ni saqlash
-            .filter(({ i }) => ['pending', 'preparing', 'ready'].includes(i.status))
+            .filter(({ i }) => ['pending', 'preparing', 'ready', 'served'].includes(i.status))
             .map(({ i, originalIdx }) => ({
               ...i.toObject(),
               kitchenStatus: i.status,
@@ -446,6 +446,9 @@ class SocketService {
       } catch (err) {
         console.error('Error fetching kitchen orders for cook:', err);
       }
+
+      // Admin panel uchun food stats yangilash
+      this.emitToRole(data.restaurantId, 'admin', 'food_stats_updated', {});
 
       socket.emit('post_order_success', { order });
 
@@ -502,7 +505,7 @@ class SocketService {
           const kitchenFilter = {
             restaurantId,
             shiftId: activeShift._id,
-            status: { $in: ['pending', 'approved', 'preparing', 'ready', 'served'] },
+            status: { $in: ['pending', 'approved', 'preparing', 'ready', 'served', 'paid'] },
             'items.status': { $in: ['pending', 'preparing', 'ready', 'served'] }
           };
 
@@ -702,8 +705,8 @@ class SocketService {
         const kitchenFilter = {
           restaurantId,
           shiftId: activeShift._id,
-          status: { $in: ['pending', 'preparing', 'approved', 'ready'] },
-          'items.status': { $in: ['pending', 'preparing', 'ready'] }
+          status: { $in: ['pending', 'preparing', 'approved', 'ready', 'served', 'paid'] },
+          'items.status': { $in: ['pending', 'preparing', 'ready', 'served'] }
         };
 
         const rawKitchenOrders = await Order.find(kitchenFilter)
@@ -716,7 +719,7 @@ class SocketService {
         const kitchenOrders = rawKitchenOrders.map(o => {
           const items = o.items
             .map((i, originalIdx) => ({ i, originalIdx }))
-            .filter(({ i }) => ['pending', 'preparing', 'ready'].includes(i.status))
+            .filter(({ i }) => ['pending', 'preparing', 'ready', 'served'].includes(i.status))
             .map(({ i, originalIdx }) => ({
               ...i.toObject(),
               kitchenStatus: i.status,
@@ -772,6 +775,9 @@ class SocketService {
 
         // Also emit kitchen_orders_updated
         await this.emitFilteredKitchenOrders(restaurantId, kitchenOrders, 'kitchen_orders_updated');
+
+        // Admin panel uchun food stats yangilash
+        this.emitToRole(restaurantId, 'admin', 'food_stats_updated', {});
 
         console.log('add_order_items: Events emitted successfully');
       }
