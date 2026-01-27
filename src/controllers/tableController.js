@@ -1,4 +1,4 @@
-const { Table, Order, Staff } = require('../models');
+const { Table, Order, Staff, Shift } = require('../models');
 const socketService = require('../services/socketService');
 
 // Get all tables
@@ -12,6 +12,12 @@ exports.getAll = async (req, res, next) => {
     if (location) filter.location = location;
     if (categoryId) filter.categoryId = categoryId;
 
+    // Aktiv smenani olish
+    const activeShift = await Shift.findOne({
+      restaurantId,
+      status: 'open'
+    });
+
     const tables = await Table.find(filter)
       .populate({
         path: 'activeOrderId',
@@ -24,9 +30,28 @@ exports.getAll = async (req, res, next) => {
       .populate('categoryId', 'title icon')
       .sort({ title: 1 });
 
+    // MUHIM: Stollarni aktiv smenaga qarab filterlash
+    const processedTables = tables.map(table => {
+      const tableObj = table.toObject();
+
+      // Agar stol band bo'lsa va activeOrderId mavjud bo'lsa
+      if (tableObj.activeOrderId && tableObj.status === 'occupied') {
+        const order = tableObj.activeOrderId;
+
+        // Aktiv smena yo'q yoki order shu smenaga tegishli emas
+        if (!activeShift || !order.shiftId || order.shiftId.toString() !== activeShift._id.toString()) {
+          // Stolni bo'sh qilib ko'rsatish
+          tableObj.status = 'free';
+          tableObj.activeOrderId = null;
+        }
+      }
+
+      return tableObj;
+    });
+
     res.json({
       success: true,
-      data: tables
+      data: processedTables
     });
   } catch (error) {
     next(error);
@@ -38,6 +63,12 @@ exports.getById = async (req, res, next) => {
   try {
     const { id } = req.params;
     const { restaurantId } = req.user;
+
+    // Aktiv smenani olish
+    const activeShift = await Shift.findOne({
+      restaurantId,
+      status: 'open'
+    });
 
     const table = await Table.findOne({ _id: id, restaurantId })
       .populate({
@@ -56,9 +87,19 @@ exports.getById = async (req, res, next) => {
       });
     }
 
+    // MUHIM: Stolni aktiv smenaga qarab filterlash
+    const tableObj = table.toObject();
+    if (tableObj.activeOrderId && tableObj.status === 'occupied') {
+      const order = tableObj.activeOrderId;
+      if (!activeShift || !order.shiftId || order.shiftId.toString() !== activeShift._id.toString()) {
+        tableObj.status = 'free';
+        tableObj.activeOrderId = null;
+      }
+    }
+
     res.json({
       success: true,
-      data: table
+      data: tableObj
     });
   } catch (error) {
     next(error);
@@ -75,14 +116,33 @@ exports.getByStatus = async (req, res, next) => {
     const statusMap = { 'available': 'free', 'cleaning': 'free' };
     const mappedStatus = statusMap[status] || status;
 
-    const tables = await Table.find({ restaurantId, status: mappedStatus })
+    // Aktiv smenani olish
+    const activeShift = await Shift.findOne({
+      restaurantId,
+      status: 'open'
+    });
+
+    const tables = await Table.find({ restaurantId })
       .populate('activeOrderId')
       .populate('assignedWaiterId', 'firstName lastName')
       .sort({ title: 1 });
 
+    // MUHIM: Stollarni aktiv smenaga qarab filterlash
+    const processedTables = tables.map(table => {
+      const tableObj = table.toObject();
+      if (tableObj.activeOrderId && tableObj.status === 'occupied') {
+        const order = tableObj.activeOrderId;
+        if (!activeShift || !order.shiftId || order.shiftId.toString() !== activeShift._id.toString()) {
+          tableObj.status = 'free';
+          tableObj.activeOrderId = null;
+        }
+      }
+      return tableObj;
+    }).filter(table => table.status === mappedStatus);
+
     res.json({
       success: true,
-      data: tables
+      data: processedTables
     });
   } catch (error) {
     next(error);
@@ -93,6 +153,12 @@ exports.getByStatus = async (req, res, next) => {
 exports.getMyTables = async (req, res, next) => {
   try {
     const { restaurantId, id: staffId } = req.user;
+
+    // Aktiv smenani olish
+    const activeShift = await Shift.findOne({
+      restaurantId,
+      status: 'open'
+    });
 
     const tables = await Table.find({
       restaurantId,
@@ -107,9 +173,22 @@ exports.getMyTables = async (req, res, next) => {
       })
       .sort({ title: 1 });
 
+    // MUHIM: Stollarni aktiv smenaga qarab filterlash
+    const processedTables = tables.map(table => {
+      const tableObj = table.toObject();
+      if (tableObj.activeOrderId && tableObj.status === 'occupied') {
+        const order = tableObj.activeOrderId;
+        if (!activeShift || !order.shiftId || order.shiftId.toString() !== activeShift._id.toString()) {
+          tableObj.status = 'free';
+          tableObj.activeOrderId = null;
+        }
+      }
+      return tableObj;
+    });
+
     res.json({
       success: true,
-      data: tables
+      data: processedTables
     });
   } catch (error) {
     next(error);
@@ -415,6 +494,12 @@ exports.getWithOrder = async (req, res, next) => {
     const { id } = req.params;
     const { restaurantId } = req.user;
 
+    // Aktiv smenani olish
+    const activeShift = await Shift.findOne({
+      restaurantId,
+      status: 'open'
+    });
+
     const table = await Table.findOne({ _id: id, restaurantId });
 
     if (!table) {
@@ -425,16 +510,28 @@ exports.getWithOrder = async (req, res, next) => {
     }
 
     let activeOrder = null;
+    const tableObj = table.toObject();
+
     if (table.activeOrderId) {
       activeOrder = await Order.findById(table.activeOrderId)
         .populate('items.foodId', 'foodName price image')
         .populate('waiterId', 'firstName lastName');
+
+      // MUHIM: Order aktiv smenaga tegishli emasligini tekshirish
+      if (activeOrder) {
+        if (!activeShift || !activeOrder.shiftId || activeOrder.shiftId.toString() !== activeShift._id.toString()) {
+          // Eski smenaning orderi - ko'rsatmaslik
+          activeOrder = null;
+          tableObj.status = 'free';
+          tableObj.activeOrderId = null;
+        }
+      }
     }
 
     res.json({
       success: true,
       data: {
-        ...table.toObject(),
+        ...tableObj,
         activeOrder
       }
     });
@@ -448,25 +545,53 @@ exports.getFloorSummary = async (req, res, next) => {
   try {
     const { restaurantId } = req.user;
 
-    const summary = await Table.aggregate([
-      { $match: { restaurantId: restaurantId, isDeleted: { $ne: true } } },
-      {
-        $group: {
-          _id: '$location',
-          total: { $sum: 1 },
-          free: {
-            $sum: { $cond: [{ $eq: ['$status', 'free'] }, 1, 0] }
-          },
-          occupied: {
-            $sum: { $cond: [{ $eq: ['$status', 'occupied'] }, 1, 0] }
-          },
-          reserved: {
-            $sum: { $cond: [{ $eq: ['$status', 'reserved'] }, 1, 0] }
-          }
+    // Aktiv smenani olish
+    const activeShift = await Shift.findOne({
+      restaurantId,
+      status: 'open'
+    });
+
+    // Aktiv smenaning orderlari bilan band stollarni olish
+    let occupiedTableIds = [];
+    if (activeShift) {
+      const activeOrders = await Order.find({
+        restaurantId,
+        shiftId: activeShift._id,
+        status: { $nin: ['paid', 'cancelled', 'served'] },
+        tableId: { $ne: null }
+      }).select('tableId');
+      occupiedTableIds = activeOrders.map(o => o.tableId.toString());
+    }
+
+    const tables = await Table.find({
+      restaurantId,
+      isDeleted: { $ne: true }
+    });
+
+    // Statistikani hisoblash
+    const summaryMap = {};
+    tables.forEach(table => {
+      const location = table.location || 'indoor';
+      if (!summaryMap[location]) {
+        summaryMap[location] = { _id: location, total: 0, free: 0, occupied: 0, reserved: 0 };
+      }
+      summaryMap[location].total++;
+
+      // Stolning haqiqiy statusini aniqlash
+      let realStatus = table.status;
+      if (table.status === 'occupied' && table.activeOrderId) {
+        // Agar order aktiv smenaga tegishli bo'lmasa - free
+        if (!occupiedTableIds.includes(table._id.toString())) {
+          realStatus = 'free';
         }
-      },
-      { $sort: { _id: 1 } }
-    ]);
+      }
+
+      if (realStatus === 'free') summaryMap[location].free++;
+      else if (realStatus === 'occupied') summaryMap[location].occupied++;
+      else if (realStatus === 'reserved') summaryMap[location].reserved++;
+    });
+
+    const summary = Object.values(summaryMap).sort((a, b) => a._id.localeCompare(b._id));
 
     res.json({
       success: true,
