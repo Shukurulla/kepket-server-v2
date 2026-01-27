@@ -456,11 +456,25 @@ class SocketService {
 
       // Cook uchun kitchen_orders_updated yuborish (served itemlar ham qoladi - cook ko'rishi uchun)
       try {
-        const rawKitchenOrders = await Order.find({
+        // Aktiv smenani olish
+        const { Shift } = require('../models');
+        const activeShift = await Shift.getActiveShift(restaurantId);
+
+        // Kitchen orders filter - faqat aktiv smena buyurtmalari
+        const kitchenFilter = {
           restaurantId,
           status: { $in: ['pending', 'approved', 'preparing', 'ready', 'served'] },
           'items.status': { $in: ['pending', 'preparing', 'ready', 'served'] }
-        }).populate('items.foodId', 'name price categoryId image')
+        };
+
+        // MUHIM: shiftId bo'lmagan eski orderlarni chiqarmaslik
+        if (activeShift) {
+          kitchenFilter.shiftId = activeShift._id;
+        } else {
+          kitchenFilter.shiftId = { $exists: true, $ne: null };
+        }
+
+        const rawKitchenOrders = await Order.find(kitchenFilter).populate('items.foodId', 'name price categoryId image')
           .populate('tableId', 'title tableNumber number')
           .populate('waiterId', 'firstName lastName')
           .sort({ createdAt: -1 });
@@ -628,11 +642,26 @@ class SocketService {
       });
 
       // Get all kitchen orders
-      const rawKitchenOrders = await Order.find({
+      // Aktiv smenani olish
+      const { Shift } = require('../models');
+      const activeShift = await Shift.getActiveShift(restaurantId);
+
+      // Kitchen orders filter - faqat aktiv smena buyurtmalari
+      const kitchenFilter = {
         restaurantId,
         status: { $in: ['pending', 'preparing', 'approved', 'ready'] },
         'items.status': { $in: ['pending', 'preparing', 'ready'] }
-      }).populate('items.foodId', 'name price categoryId image')
+      };
+
+      // MUHIM: shiftId bo'lmagan eski orderlarni chiqarmaslik
+      if (activeShift) {
+        kitchenFilter.shiftId = activeShift._id;
+      } else {
+        kitchenFilter.shiftId = { $exists: true, $ne: null };
+      }
+
+      const rawKitchenOrders = await Order.find(kitchenFilter)
+        .populate('items.foodId', 'name price categoryId image')
         .populate('tableId', 'title tableNumber number')
         .populate('waiterId', 'firstName lastName')
         .sort({ createdAt: -1 });
