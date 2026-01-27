@@ -55,12 +55,15 @@ exports.getOrders = async (req, res, next) => {
     };
 
     // Agar shiftId bo'lsa, faqat shu smenadagi buyurtmalarni ko'rsatish
-    // MUHIM: shiftId bo'lmagan eski orderlarni chiqarmaslik
+    // MUHIM: Aktiv smena yo'q bo'lsa, bo'sh qaytarish
     if (currentShiftId) {
       orderFilter.shiftId = currentShiftId;
     } else {
-      // Hech qanday smena yo'q - shiftId mavjud bo'lgan orderlarni ko'rsatish
-      orderFilter.shiftId = { $exists: true, $ne: null };
+      // Aktiv smena yo'q - bo'sh qaytarish (hech qanday order ko'rsatilmaydi)
+      return res.json({
+        success: true,
+        data: []
+      });
     }
 
     const rawOrders = await Order.find(orderFilter)
@@ -261,11 +264,13 @@ exports.updateItemStatus = async (req, res, next) => {
     };
 
     // Agar aktiv smena bo'lsa, faqat shu smenadagi buyurtmalarni ko'rsatish
-    // MUHIM: shiftId bo'lmagan eski orderlarni chiqarmaslik
+    // MUHIM: Aktiv smena yo'q bo'lsa, bo'sh data yuborish
     if (activeShift) {
       kitchenFilter.shiftId = activeShift._id;
     } else {
-      kitchenFilter.shiftId = { $exists: true, $ne: null };
+      // Aktiv smena yo'q - bo'sh data yuborish
+      socketService.emitToRestaurant(restaurantId.toString(), 'kitchen_orders_updated', []);
+      return;
     }
 
     // Get all kitchen orders for cook-web (including ready, served, and cancelled items)
@@ -453,11 +458,13 @@ exports.startItem = async (req, res, next) => {
     };
 
     // Agar aktiv smena bo'lsa, faqat shu smenadagi buyurtmalarni ko'rsatish
-    // MUHIM: shiftId bo'lmagan eski orderlarni chiqarmaslik
+    // MUHIM: Aktiv smena yo'q bo'lsa, bo'sh data yuborish
     if (activeShift) {
       kitchenFilter.shiftId = activeShift._id;
     } else {
-      kitchenFilter.shiftId = { $exists: true, $ne: null };
+      // Aktiv smena yo'q - bo'sh data yuborish
+      socketService.emitToRestaurant(restaurantId.toString(), 'kitchen_orders_updated', []);
+      return;
     }
 
     // Kitchen orders yangilash

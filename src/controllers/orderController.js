@@ -677,51 +677,51 @@ const deleteOrder = asyncHandler(async (req, res) => {
       status: { $in: ['pending', 'approved', 'preparing', 'ready'] },
       'items.status': { $in: ['pending', 'preparing', 'ready'] }
     };
-    // MUHIM: shiftId bo'lmagan eski orderlarni chiqarmaslik
-    if (activeShift) {
-      kitchenFilter.shiftId = activeShift._id;
+    // MUHIM: Aktiv smena yo'q bo'lsa, bo'sh data yuborish va query qilmaslik
+    if (!activeShift) {
+      await socketService.emitFilteredKitchenOrders(restaurantId.toString(), [], 'kitchen_orders_updated');
     } else {
-      kitchenFilter.shiftId = { $exists: true, $ne: null };
+      kitchenFilter.shiftId = activeShift._id;
+
+      const rawKitchenOrders = await Order.find(kitchenFilter).populate('items.foodId', 'name price categoryId image requireDoubleConfirmation')
+        .populate('tableId', 'title tableNumber number')
+        .populate('waiterId', 'firstName lastName')
+        .sort({ createdAt: -1 });
+
+      const kitchenOrders = rawKitchenOrders.map(o => {
+        const items = o.items
+          .map((i, originalIdx) => ({ i, originalIdx }))
+          .filter(({ i }) => ['pending', 'preparing', 'ready'].includes(i.status) && !i.isDeleted)
+          .map(({ i, originalIdx }) => ({
+            ...i.toObject(),
+            kitchenStatus: i.status,
+            name: i.foodId?.name || i.foodName,
+            requireDoubleConfirmation: i.foodId?.requireDoubleConfirmation || false,
+            categoryId: i.foodId?.categoryId?.toString() || null,
+            originalIndex: originalIdx
+          }));
+        return {
+          _id: o._id,
+          orderId: o._id,
+          orderNumber: o.orderNumber,
+          orderType: o.orderType || 'dine-in',
+          saboyNumber: o.saboyNumber,
+          tableId: o.tableId,
+          tableName: o.orderType === 'saboy'
+            ? `Saboy #${o.saboyNumber || o.orderNumber}`
+            : (o.tableId?.title || o.tableName || `Stol ${o.tableId?.number || o.tableNumber || ''}`),
+          tableNumber: o.tableId?.number || o.tableNumber,
+          waiterId: o.waiterId,
+          waiterName: o.waiterId ? `${o.waiterId.firstName || ''} ${o.waiterId.lastName || ''}`.trim() : '',
+          items,
+          status: o.status,
+          createdAt: o.createdAt,
+          restaurantId: o.restaurantId
+        };
+      }).filter(o => o.items.length > 0);
+
+      await socketService.emitFilteredKitchenOrders(restaurantId.toString(), kitchenOrders, 'kitchen_orders_updated');
     }
-
-    const rawKitchenOrders = await Order.find(kitchenFilter).populate('items.foodId', 'name price categoryId image requireDoubleConfirmation')
-      .populate('tableId', 'title tableNumber number')
-      .populate('waiterId', 'firstName lastName')
-      .sort({ createdAt: -1 });
-
-    const kitchenOrders = rawKitchenOrders.map(o => {
-      const items = o.items
-        .map((i, originalIdx) => ({ i, originalIdx }))
-        .filter(({ i }) => ['pending', 'preparing', 'ready'].includes(i.status) && !i.isDeleted)
-        .map(({ i, originalIdx }) => ({
-          ...i.toObject(),
-          kitchenStatus: i.status,
-          name: i.foodId?.name || i.foodName,
-          requireDoubleConfirmation: i.foodId?.requireDoubleConfirmation || false,
-          categoryId: i.foodId?.categoryId?.toString() || null,
-          originalIndex: originalIdx
-        }));
-      return {
-        _id: o._id,
-        orderId: o._id,
-        orderNumber: o.orderNumber,
-        orderType: o.orderType || 'dine-in',
-        saboyNumber: o.saboyNumber,
-        tableId: o.tableId,
-        tableName: o.orderType === 'saboy'
-          ? `Saboy #${o.saboyNumber || o.orderNumber}`
-          : (o.tableId?.title || o.tableName || `Stol ${o.tableId?.number || o.tableNumber || ''}`),
-        tableNumber: o.tableId?.number || o.tableNumber,
-        waiterId: o.waiterId,
-        waiterName: o.waiterId ? `${o.waiterId.firstName || ''} ${o.waiterId.lastName || ''}`.trim() : '',
-        items,
-        status: o.status,
-        createdAt: o.createdAt,
-        restaurantId: o.restaurantId
-      };
-    }).filter(o => o.items.length > 0);
-
-    await socketService.emitFilteredKitchenOrders(restaurantId.toString(), kitchenOrders, 'kitchen_orders_updated');
   } catch (err) {
     console.error('Error sending kitchen orders after delete:', err);
   }
@@ -786,71 +786,71 @@ const addItems = asyncHandler(async (req, res) => {
       status: { $in: ['pending', 'approved', 'preparing', 'ready'] },
       'items.status': { $in: ['pending', 'preparing', 'ready'] }
     };
-    // MUHIM: shiftId bo'lmagan eski orderlarni chiqarmaslik
-    if (activeShift) {
-      kitchenFilter.shiftId = activeShift._id;
+    // MUHIM: Aktiv smena yo'q bo'lsa, bo'sh data yuborish va query qilmaslik
+    if (!activeShift) {
+      await socketService.emitFilteredKitchenOrders(restaurantId.toString(), [], 'kitchen_orders_updated');
     } else {
-      kitchenFilter.shiftId = { $exists: true, $ne: null };
+      kitchenFilter.shiftId = activeShift._id;
+
+      const rawKitchenOrders = await Order.find(kitchenFilter).populate('items.foodId', 'name price categoryId image requireDoubleConfirmation')
+        .populate('tableId', 'title tableNumber number')
+        .populate('waiterId', 'firstName lastName')
+        .sort({ createdAt: -1 });
+
+      // Transform for cook-web format
+      const kitchenOrders = rawKitchenOrders.map(o => {
+        const items = o.items
+          .map((i, originalIdx) => ({ i, originalIdx }))
+          .filter(({ i }) => ['pending', 'preparing', 'ready'].includes(i.status) && !i.isDeleted)
+          .map(({ i, originalIdx }) => ({
+            ...i.toObject(),
+            kitchenStatus: i.status,
+            name: i.foodId?.name || i.foodName,
+            requireDoubleConfirmation: i.foodId?.requireDoubleConfirmation || false,
+            categoryId: i.foodId?.categoryId?.toString() || i.categoryId?.toString() || null,
+            originalIndex: originalIdx
+          }));
+        return {
+          _id: o._id,
+          orderId: o._id,
+          orderNumber: o.orderNumber,
+          orderType: o.orderType || 'dine-in',
+          saboyNumber: o.saboyNumber,
+          tableId: o.tableId,
+          tableName: o.orderType === 'saboy'
+            ? `Saboy #${o.saboyNumber || o.orderNumber}`
+            : (o.tableId?.title || o.tableName || `Stol ${o.tableId?.number || o.tableNumber || ''}`),
+          tableNumber: o.tableId?.number || o.tableNumber,
+          waiterId: o.waiterId,
+          waiterName: o.waiterId ? `${o.waiterId.firstName || ''} ${o.waiterId.lastName || ''}`.trim() : '',
+          items,
+          status: o.status,
+          createdAt: o.createdAt,
+          restaurantId: o.restaurantId
+        };
+      }).filter(o => o.items.length > 0);
+
+      // Yangi qo'shilgan itemlarni formatlash (categoryId bilan!)
+      const formattedNewItems = orderItems.map((item, idx) => ({
+        ...item,
+        kitchenStatus: 'pending',
+        categoryId: item.categoryId?.toString() || null,
+        originalIndex: order.items.length - orderItems.length + idx
+      }));
+
+      // Admin uchun barcha itemlar
+      socketService.emitToRole(restaurantId.toString(), 'admin', 'new_kitchen_order', {
+        order: order,
+        allOrders: kitchenOrders,
+        isNewOrder: false,
+        itemsAddedToExisting: true,
+        newItems: formattedNewItems
+      });
+
+      // Har bir cook uchun KATEGORIYA BO'YICHA filter qilingan
+      await socketService.emitFilteredNewKitchenOrderForAddedItems(restaurantId.toString(), order, kitchenOrders, formattedNewItems);
+      await socketService.emitFilteredKitchenOrders(restaurantId.toString(), kitchenOrders, 'kitchen_orders_updated');
     }
-
-    const rawKitchenOrders = await Order.find(kitchenFilter).populate('items.foodId', 'name price categoryId image requireDoubleConfirmation')
-      .populate('tableId', 'title tableNumber number')
-      .populate('waiterId', 'firstName lastName')
-      .sort({ createdAt: -1 });
-
-    // Transform for cook-web format
-    const kitchenOrders = rawKitchenOrders.map(o => {
-      const items = o.items
-        .map((i, originalIdx) => ({ i, originalIdx }))
-        .filter(({ i }) => ['pending', 'preparing', 'ready'].includes(i.status) && !i.isDeleted)
-        .map(({ i, originalIdx }) => ({
-          ...i.toObject(),
-          kitchenStatus: i.status,
-          name: i.foodId?.name || i.foodName,
-          requireDoubleConfirmation: i.foodId?.requireDoubleConfirmation || false,
-          categoryId: i.foodId?.categoryId?.toString() || i.categoryId?.toString() || null,
-          originalIndex: originalIdx
-        }));
-      return {
-        _id: o._id,
-        orderId: o._id,
-        orderNumber: o.orderNumber,
-        orderType: o.orderType || 'dine-in',
-        saboyNumber: o.saboyNumber,
-        tableId: o.tableId,
-        tableName: o.orderType === 'saboy'
-          ? `Saboy #${o.saboyNumber || o.orderNumber}`
-          : (o.tableId?.title || o.tableName || `Stol ${o.tableId?.number || o.tableNumber || ''}`),
-        tableNumber: o.tableId?.number || o.tableNumber,
-        waiterId: o.waiterId,
-        waiterName: o.waiterId ? `${o.waiterId.firstName || ''} ${o.waiterId.lastName || ''}`.trim() : '',
-        items,
-        status: o.status,
-        createdAt: o.createdAt,
-        restaurantId: o.restaurantId
-      };
-    }).filter(o => o.items.length > 0);
-
-    // Yangi qo'shilgan itemlarni formatlash (categoryId bilan!)
-    const formattedNewItems = orderItems.map((item, idx) => ({
-      ...item,
-      kitchenStatus: 'pending',
-      categoryId: item.categoryId?.toString() || null,
-      originalIndex: order.items.length - orderItems.length + idx
-    }));
-
-    // Admin uchun barcha itemlar
-    socketService.emitToRole(restaurantId.toString(), 'admin', 'new_kitchen_order', {
-      order: order,
-      allOrders: kitchenOrders,
-      isNewOrder: false,
-      itemsAddedToExisting: true,
-      newItems: formattedNewItems
-    });
-
-    // Har bir cook uchun KATEGORIYA BO'YICHA filter qilingan
-    await socketService.emitFilteredNewKitchenOrderForAddedItems(restaurantId.toString(), order, kitchenOrders, formattedNewItems);
-    await socketService.emitFilteredKitchenOrders(restaurantId.toString(), kitchenOrders, 'kitchen_orders_updated');
   } catch (err) {
     console.error('Error sending kitchen orders after addItems:', err);
   }
@@ -918,51 +918,51 @@ const deleteItem = asyncHandler(async (req, res) => {
       status: { $in: ['pending', 'approved', 'preparing', 'ready'] },
       'items.status': { $in: ['pending', 'preparing', 'ready'] }
     };
-    // MUHIM: shiftId bo'lmagan eski orderlarni chiqarmaslik
-    if (activeShift) {
-      kitchenFilter.shiftId = activeShift._id;
+    // MUHIM: Aktiv smena yo'q bo'lsa, bo'sh data yuborish va query qilmaslik
+    if (!activeShift) {
+      await socketService.emitFilteredKitchenOrders(restaurantId.toString(), [], 'kitchen_orders_updated');
     } else {
-      kitchenFilter.shiftId = { $exists: true, $ne: null };
+      kitchenFilter.shiftId = activeShift._id;
+
+      const rawKitchenOrders = await Order.find(kitchenFilter).populate('items.foodId', 'name price categoryId image requireDoubleConfirmation')
+        .populate('tableId', 'title tableNumber number')
+        .populate('waiterId', 'firstName lastName')
+        .sort({ createdAt: -1 });
+
+      const kitchenOrders = rawKitchenOrders.map(o => {
+        const items = o.items
+          .map((i, originalIdx) => ({ i, originalIdx }))
+          .filter(({ i }) => ['pending', 'preparing', 'ready'].includes(i.status) && !i.isDeleted)
+          .map(({ i, originalIdx }) => ({
+            ...i.toObject(),
+            kitchenStatus: i.status,
+            name: i.foodId?.name || i.foodName,
+            requireDoubleConfirmation: i.foodId?.requireDoubleConfirmation || false,
+            categoryId: i.foodId?.categoryId?.toString() || null,
+            originalIndex: originalIdx
+          }));
+        return {
+          _id: o._id,
+          orderId: o._id,
+          orderNumber: o.orderNumber,
+          orderType: o.orderType || 'dine-in',
+          saboyNumber: o.saboyNumber,
+          tableId: o.tableId,
+          tableName: o.orderType === 'saboy'
+            ? `Saboy #${o.saboyNumber || o.orderNumber}`
+            : (o.tableId?.title || o.tableName || `Stol ${o.tableId?.number || o.tableNumber || ''}`),
+          tableNumber: o.tableId?.number || o.tableNumber,
+          waiterId: o.waiterId,
+          waiterName: o.waiterId ? `${o.waiterId.firstName || ''} ${o.waiterId.lastName || ''}`.trim() : '',
+          items,
+          status: o.status,
+          createdAt: o.createdAt,
+          restaurantId: o.restaurantId
+        };
+      }).filter(o => o.items.length > 0);
+
+      await socketService.emitFilteredKitchenOrders(restaurantId.toString(), kitchenOrders, 'kitchen_orders_updated');
     }
-
-    const rawKitchenOrders = await Order.find(kitchenFilter).populate('items.foodId', 'name price categoryId image requireDoubleConfirmation')
-      .populate('tableId', 'title tableNumber number')
-      .populate('waiterId', 'firstName lastName')
-      .sort({ createdAt: -1 });
-
-    const kitchenOrders = rawKitchenOrders.map(o => {
-      const items = o.items
-        .map((i, originalIdx) => ({ i, originalIdx }))
-        .filter(({ i }) => ['pending', 'preparing', 'ready'].includes(i.status) && !i.isDeleted)
-        .map(({ i, originalIdx }) => ({
-          ...i.toObject(),
-          kitchenStatus: i.status,
-          name: i.foodId?.name || i.foodName,
-          requireDoubleConfirmation: i.foodId?.requireDoubleConfirmation || false,
-          categoryId: i.foodId?.categoryId?.toString() || null,
-          originalIndex: originalIdx
-        }));
-      return {
-        _id: o._id,
-        orderId: o._id,
-        orderNumber: o.orderNumber,
-        orderType: o.orderType || 'dine-in',
-        saboyNumber: o.saboyNumber,
-        tableId: o.tableId,
-        tableName: o.orderType === 'saboy'
-          ? `Saboy #${o.saboyNumber || o.orderNumber}`
-          : (o.tableId?.title || o.tableName || `Stol ${o.tableId?.number || o.tableNumber || ''}`),
-        tableNumber: o.tableId?.number || o.tableNumber,
-        waiterId: o.waiterId,
-        waiterName: o.waiterId ? `${o.waiterId.firstName || ''} ${o.waiterId.lastName || ''}`.trim() : '',
-        items,
-        status: o.status,
-        createdAt: o.createdAt,
-        restaurantId: o.restaurantId
-      };
-    }).filter(o => o.items.length > 0);
-
-    await socketService.emitFilteredKitchenOrders(restaurantId.toString(), kitchenOrders, 'kitchen_orders_updated');
   } catch (err) {
     console.error('Error sending kitchen orders after item delete:', err);
   }
@@ -1027,51 +1027,51 @@ const updateItemQuantity = asyncHandler(async (req, res) => {
       status: { $in: ['pending', 'approved', 'preparing', 'ready'] },
       'items.status': { $in: ['pending', 'preparing', 'ready'] }
     };
-    // MUHIM: shiftId bo'lmagan eski orderlarni chiqarmaslik
-    if (activeShift) {
-      kitchenFilter.shiftId = activeShift._id;
+    // MUHIM: Aktiv smena yo'q bo'lsa, bo'sh data yuborish va query qilmaslik
+    if (!activeShift) {
+      await socketService.emitFilteredKitchenOrders(restaurantId.toString(), [], 'kitchen_orders_updated');
     } else {
-      kitchenFilter.shiftId = { $exists: true, $ne: null };
+      kitchenFilter.shiftId = activeShift._id;
+
+      const rawKitchenOrders = await Order.find(kitchenFilter).populate('items.foodId', 'name price categoryId image requireDoubleConfirmation')
+        .populate('tableId', 'title tableNumber number')
+        .populate('waiterId', 'firstName lastName')
+        .sort({ createdAt: -1 });
+
+      const kitchenOrders = rawKitchenOrders.map(o => {
+        const items = o.items
+          .map((i, originalIdx) => ({ i, originalIdx }))
+          .filter(({ i }) => ['pending', 'preparing', 'ready'].includes(i.status) && !i.isDeleted)
+          .map(({ i, originalIdx }) => ({
+            ...i.toObject(),
+            kitchenStatus: i.status,
+            name: i.foodId?.name || i.foodName,
+            requireDoubleConfirmation: i.foodId?.requireDoubleConfirmation || false,
+            categoryId: i.foodId?.categoryId?.toString() || null,
+            originalIndex: originalIdx
+          }));
+        return {
+          _id: o._id,
+          orderId: o._id,
+          orderNumber: o.orderNumber,
+          orderType: o.orderType || 'dine-in',
+          saboyNumber: o.saboyNumber,
+          tableId: o.tableId,
+          tableName: o.orderType === 'saboy'
+            ? `Saboy #${o.saboyNumber || o.orderNumber}`
+            : (o.tableId?.title || o.tableName || `Stol ${o.tableId?.number || o.tableNumber || ''}`),
+          tableNumber: o.tableId?.number || o.tableNumber,
+          waiterId: o.waiterId,
+          waiterName: o.waiterId ? `${o.waiterId.firstName || ''} ${o.waiterId.lastName || ''}`.trim() : '',
+          items,
+          status: o.status,
+          createdAt: o.createdAt,
+          restaurantId: o.restaurantId
+        };
+      }).filter(o => o.items.length > 0);
+
+      await socketService.emitFilteredKitchenOrders(restaurantId.toString(), kitchenOrders, 'kitchen_orders_updated');
     }
-
-    const rawKitchenOrders = await Order.find(kitchenFilter).populate('items.foodId', 'name price categoryId image requireDoubleConfirmation')
-      .populate('tableId', 'title tableNumber number')
-      .populate('waiterId', 'firstName lastName')
-      .sort({ createdAt: -1 });
-
-    const kitchenOrders = rawKitchenOrders.map(o => {
-      const items = o.items
-        .map((i, originalIdx) => ({ i, originalIdx }))
-        .filter(({ i }) => ['pending', 'preparing', 'ready'].includes(i.status) && !i.isDeleted)
-        .map(({ i, originalIdx }) => ({
-          ...i.toObject(),
-          kitchenStatus: i.status,
-          name: i.foodId?.name || i.foodName,
-          requireDoubleConfirmation: i.foodId?.requireDoubleConfirmation || false,
-          categoryId: i.foodId?.categoryId?.toString() || null,
-          originalIndex: originalIdx
-        }));
-      return {
-        _id: o._id,
-        orderId: o._id,
-        orderNumber: o.orderNumber,
-        orderType: o.orderType || 'dine-in',
-        saboyNumber: o.saboyNumber,
-        tableId: o.tableId,
-        tableName: o.orderType === 'saboy'
-          ? `Saboy #${o.saboyNumber || o.orderNumber}`
-          : (o.tableId?.title || o.tableName || `Stol ${o.tableId?.number || o.tableNumber || ''}`),
-        tableNumber: o.tableId?.number || o.tableNumber,
-        waiterId: o.waiterId,
-        waiterName: o.waiterId ? `${o.waiterId.firstName || ''} ${o.waiterId.lastName || ''}`.trim() : '',
-        items,
-        status: o.status,
-        createdAt: o.createdAt,
-        restaurantId: o.restaurantId
-      };
-    }).filter(o => o.items.length > 0);
-
-    await socketService.emitFilteredKitchenOrders(restaurantId.toString(), kitchenOrders, 'kitchen_orders_updated');
   } catch (err) {
     console.error('Error sending kitchen orders:', err);
   }
@@ -1307,61 +1307,61 @@ const approveOrder = asyncHandler(async (req, res) => {
       status: { $in: ['pending', 'approved', 'preparing', 'ready'] },
       'items.status': { $in: ['pending', 'preparing', 'ready'] }
     };
-    // MUHIM: shiftId bo'lmagan eski orderlarni chiqarmaslik
-    if (activeShift) {
-      kitchenFilter.shiftId = activeShift._id;
+    // MUHIM: Aktiv smena yo'q bo'lsa, bo'sh data yuborish va query qilmaslik
+    if (!activeShift) {
+      await socketService.emitFilteredKitchenOrders(restaurantId.toString(), [], 'kitchen_orders_updated');
     } else {
-      kitchenFilter.shiftId = { $exists: true, $ne: null };
+      kitchenFilter.shiftId = activeShift._id;
+
+      const rawKitchenOrders = await Order.find(kitchenFilter).populate('items.foodId', 'name price categoryId image requireDoubleConfirmation')
+        .populate('tableId', 'title tableNumber number')
+        .populate('waiterId', 'firstName lastName')
+        .sort({ createdAt: -1 });
+
+      // Transform for cook-web format
+      const kitchenOrders = rawKitchenOrders.map(o => {
+        const items = o.items
+          .map((i, originalIdx) => ({ i, originalIdx }))
+          .filter(({ i }) => ['pending', 'preparing', 'ready'].includes(i.status))
+          .map(({ i, originalIdx }) => ({
+            ...i.toObject(),
+            kitchenStatus: i.status,
+            name: i.foodId?.name || i.foodName,
+            requireDoubleConfirmation: i.foodId?.requireDoubleConfirmation || false,
+            categoryId: i.foodId?.categoryId?.toString() || null,
+            originalIndex: originalIdx
+          }));
+        return {
+          _id: o._id,
+          orderId: o._id,
+          orderNumber: o.orderNumber,
+          orderType: o.orderType || 'dine-in',
+          saboyNumber: o.saboyNumber,
+          tableId: o.tableId,
+          tableName: o.orderType === 'saboy'
+            ? `Saboy #${o.saboyNumber || o.orderNumber}`
+            : (o.tableId?.title || o.tableName || `Stol ${o.tableId?.number || o.tableNumber || ''}`),
+          tableNumber: o.tableId?.number || o.tableNumber,
+          waiterId: o.waiterId,
+          waiterName: o.waiterId ? `${o.waiterId.firstName || ''} ${o.waiterId.lastName || ''}`.trim() : '',
+          items,
+          status: o.status,
+          createdAt: o.createdAt,
+          restaurantId: o.restaurantId
+        };
+      }).filter(o => o.items.length > 0);
+
+      // Admin uchun barcha itemlar
+      socketService.emitToRole(restaurantId.toString(), 'admin', 'new_kitchen_order', {
+        order: order,
+        allOrders: kitchenOrders,
+        isNewOrder: true,
+        newItems: order.items.map((i, idx) => ({ ...i.toObject(), kitchenStatus: i.status, originalIndex: idx }))
+      });
+      // Har bir cook uchun filter qilingan
+      await socketService.emitFilteredNewKitchenOrder(restaurantId.toString(), order, kitchenOrders);
+      await socketService.emitFilteredKitchenOrders(restaurantId.toString(), kitchenOrders, 'kitchen_orders_updated');
     }
-
-    const rawKitchenOrders = await Order.find(kitchenFilter).populate('items.foodId', 'name price categoryId image requireDoubleConfirmation')
-      .populate('tableId', 'title tableNumber number')
-      .populate('waiterId', 'firstName lastName')
-      .sort({ createdAt: -1 });
-
-    // Transform for cook-web format
-    const kitchenOrders = rawKitchenOrders.map(o => {
-      const items = o.items
-        .map((i, originalIdx) => ({ i, originalIdx }))
-        .filter(({ i }) => ['pending', 'preparing', 'ready'].includes(i.status))
-        .map(({ i, originalIdx }) => ({
-          ...i.toObject(),
-          kitchenStatus: i.status,
-          name: i.foodId?.name || i.foodName,
-          requireDoubleConfirmation: i.foodId?.requireDoubleConfirmation || false,
-          categoryId: i.foodId?.categoryId?.toString() || null,
-          originalIndex: originalIdx
-        }));
-      return {
-        _id: o._id,
-        orderId: o._id,
-        orderNumber: o.orderNumber,
-        orderType: o.orderType || 'dine-in',
-        saboyNumber: o.saboyNumber,
-        tableId: o.tableId,
-        tableName: o.orderType === 'saboy'
-          ? `Saboy #${o.saboyNumber || o.orderNumber}`
-          : (o.tableId?.title || o.tableName || `Stol ${o.tableId?.number || o.tableNumber || ''}`),
-        tableNumber: o.tableId?.number || o.tableNumber,
-        waiterId: o.waiterId,
-        waiterName: o.waiterId ? `${o.waiterId.firstName || ''} ${o.waiterId.lastName || ''}`.trim() : '',
-        items,
-        status: o.status,
-        createdAt: o.createdAt,
-        restaurantId: o.restaurantId
-      };
-    }).filter(o => o.items.length > 0);
-
-    // Admin uchun barcha itemlar
-    socketService.emitToRole(restaurantId.toString(), 'admin', 'new_kitchen_order', {
-      order: order,
-      allOrders: kitchenOrders,
-      isNewOrder: true,
-      newItems: order.items.map((i, idx) => ({ ...i.toObject(), kitchenStatus: i.status, originalIndex: idx }))
-    });
-    // Har bir cook uchun filter qilingan
-    await socketService.emitFilteredNewKitchenOrder(restaurantId.toString(), order, kitchenOrders);
-    await socketService.emitFilteredKitchenOrders(restaurantId.toString(), kitchenOrders, 'kitchen_orders_updated');
   } catch (err) {
     console.error('Error sending kitchen orders:', err);
   }
