@@ -48,6 +48,9 @@ const getActiveShift = asyncHandler(async (req, res) => {
 /**
  * Yangi smena ochish
  * POST /api/shifts/open
+ *
+ * MUHIM: Yangi smena butunlay bo'sh boshlanadi!
+ * Eski smenadagi to'lanmagan orderlar o'tkazilmaydi.
  */
 const openShift = asyncHandler(async (req, res) => {
   const { restaurantId, id: userId } = req.user;
@@ -79,37 +82,20 @@ const openShift = asyncHandler(async (req, res) => {
   await shift.save();
   await shift.populate('openedBy', 'firstName lastName');
 
-  // O'tkazilmagan (shiftId = null) buyurtmalarni yangi smenaga biriktirish
-  const orphanOrders = await Order.find({
-    restaurantId,
-    shiftId: null,
-    isPaid: false,
-    status: { $nin: ['paid', 'cancelled'] }
-  });
-
-  if (orphanOrders.length > 0) {
-    const orphanIds = [];
-    for (const order of orphanOrders) {
-      order.shiftId = shift._id;
-      order.transferredToShiftAt = new Date();
-      await order.save();
-      orphanIds.push(order._id);
-    }
-    shift.transferredOrderIds = orphanIds;
-    await shift.save();
-  }
+  // YANGI SMENA BO'SH BOSHLANADI!
+  // Eski smenadagi orderlar o'tkazilmaydi - ular o'z smenasida qoladi
 
   // Real-time event yuborish
   emitShiftEvent(restaurantId.toString(), 'shift:opened', {
     shift,
     message: `Smena #${shiftNumber} ochildi`,
-    transferredOrders: orphanOrders.length
+    transferredOrders: 0 // Hech qanday order o'tkazilmaydi
   });
 
   res.status(201).json({
     success: true,
     data: shift,
-    transferredOrders: orphanOrders.length,
+    transferredOrders: 0,
     message: `Smena #${shiftNumber} muvaffaqiyatli ochildi`
   });
 });
@@ -117,6 +103,9 @@ const openShift = asyncHandler(async (req, res) => {
 /**
  * Smenani yopish
  * POST /api/shifts/:id/close
+ *
+ * MUHIM: To'lanmagan orderlar shu smenada qoladi!
+ * Yangi smenaga o'tkazilmaydi - yangi smena bo'sh boshlanadi.
  */
 const closeShift = asyncHandler(async (req, res) => {
   const { id } = req.params;
@@ -137,20 +126,15 @@ const closeShift = asyncHandler(async (req, res) => {
     throw new AppError('Aktiv smena topilmadi', 404, 'NOT_FOUND');
   }
 
-  // To'lanmagan buyurtmalarni shiftId = null qilib qo'yish (yangi smenaga o'tishi uchun)
-  const unpaidOrders = await Order.find({
+  // To'lanmagan orderlarni hisoblash (faqat statistika uchun)
+  const unpaidOrdersCount = await Order.countDocuments({
     shiftId: shift._id,
     isPaid: false,
     status: { $nin: ['paid', 'cancelled'] }
   });
 
-  const transferredOrderIds = [];
-  for (const order of unpaidOrders) {
-    order.shiftId = null; // Yangi smena ochilganda avtomatik ulanadi
-    order.transferredFromShiftId = shift._id;
-    await order.save();
-    transferredOrderIds.push(order._id);
-  }
+  // MUHIM: Orderlarni o'zgartirmaymiz!
+  // Ular shu smenada qoladi - yangi smena bo'sh boshlanadi
 
   // Smenani yopish
   await shift.closeShift(userId, parseFloat(closingCash), closingNotes);
@@ -160,13 +144,13 @@ const closeShift = asyncHandler(async (req, res) => {
   emitShiftEvent(restaurantId.toString(), 'shift:closed', {
     shift,
     message: `Smena #${shift.shiftNumber} yopildi`,
-    transferredOrders: transferredOrderIds.length
+    unpaidOrders: unpaidOrdersCount // Faqat ma'lumot uchun
   });
 
   res.json({
     success: true,
     data: shift,
-    transferredOrders: transferredOrderIds.length,
+    unpaidOrders: unpaidOrdersCount,
     message: `Smena #${shift.shiftNumber} muvaffaqiyatli yopildi`
   });
 });

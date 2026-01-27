@@ -1,4 +1,4 @@
-const { Order, Food, Staff, Table, Category } = require('../models');
+const { Order, Food, Staff, Table, Category, Shift } = require('../models');
 const mongoose = require('mongoose');
 
 // Helper function to get date range
@@ -45,14 +45,76 @@ const getDateRange = (period) => {
 exports.getDashboard = async (req, res, next) => {
   try {
     const { restaurantId } = req.user;
-    const { period = 'today' } = req.query;
+    const { period = 'today', allShifts, shiftId } = req.query;
     const { start, end } = getDateRange(period);
 
-    // Get orders in date range
-    const orders = await Order.find({
+    // Smena filteri
+    let orderFilter = {
       restaurantId,
-      createdAt: { $gte: start, $lte: end },
       status: { $ne: 'cancelled' }
+    };
+
+    // MUHIM: Frontend dan kelgan shiftId ga ustuvorlik
+    if (shiftId && shiftId.trim() !== '') {
+      // Frontend aniq shiftId yuborgan - shu smenani ko'rsatish
+      try {
+        orderFilter.shiftId = new mongoose.Types.ObjectId(shiftId);
+      } catch (err) {
+        // Invalid ObjectId - bo'sh statistika qaytarish
+        return res.json({
+          success: true,
+          data: {
+            period,
+            summary: {
+              totalOrders: 0,
+              completedOrders: 0,
+              totalRevenue: 0,
+              totalItems: 0,
+              averageOrderValue: 0,
+              activeTables: 0,
+              totalTables: 0
+            },
+            topFoods: []
+          }
+        });
+      }
+    } else if (period === 'today' && allShifts !== 'true') {
+      // ShiftId berilmagan va period=today - aktiv smenani aniqlash
+      const activeShift = await Shift.getActiveShift(restaurantId);
+      if (activeShift) {
+        orderFilter.shiftId = activeShift._id;
+      } else {
+        // Aktiv smena yo'q - bo'sh statistika qaytarish
+        return res.json({
+          success: true,
+          data: {
+            period,
+            summary: {
+              totalOrders: 0,
+              completedOrders: 0,
+              totalRevenue: 0,
+              totalItems: 0,
+              averageOrderValue: 0,
+              activeTables: 0,
+              totalTables: 0
+            },
+            topFoods: []
+          }
+        });
+      }
+    } else {
+      // Boshqa periodlar uchun sana bo'yicha filter
+      orderFilter.createdAt = { $gte: start, $lte: end };
+      // Faqat shiftId mavjud bo'lgan orderlarni olish
+      orderFilter.shiftId = { $exists: true, $ne: null };
+    }
+
+    // Get orders in date range or by shift
+    const rawOrders = await Order.find(orderFilter);
+
+    // MUHIM: Qo'shimcha filter - shiftId bo'lmagan orderlarni chiqarib tashlash
+    const orders = rawOrders.filter(order => {
+      return order.shiftId && order.shiftId.toString().trim() !== '';
     });
 
     // Calculate metrics
@@ -72,14 +134,22 @@ exports.getDashboard = async (req, res, next) => {
 
     const totalTables = await Table.countDocuments({ restaurantId });
 
-    // Get today's top foods
+    // Get top foods (same filter as orders - by shift or date range)
+    const aggregateFilter = {
+      restaurantId: new mongoose.Types.ObjectId(restaurantId),
+      status: { $ne: 'cancelled' }
+    };
+
+    // Agar shiftId bor bo'lsa - shiftId bo'yicha, aks holda sana bo'yicha
+    if (orderFilter.shiftId) {
+      aggregateFilter.shiftId = orderFilter.shiftId;
+    } else {
+      aggregateFilter.createdAt = { $gte: start, $lte: end };
+    }
+
     const topFoods = await Order.aggregate([
       {
-        $match: {
-          restaurantId: new mongoose.Types.ObjectId(restaurantId),
-          createdAt: { $gte: start, $lte: end },
-          status: { $ne: 'cancelled' }
-        }
+        $match: aggregateFilter
       },
       { $unwind: '$items' },
       {
@@ -404,7 +474,7 @@ exports.getStaffReport = async (req, res, next) => {
 exports.getPaymentReport = async (req, res, next) => {
   try {
     const { restaurantId } = req.user;
-    const { startDate, endDate } = req.query;
+    const { startDate, endDate, shiftId } = req.query;
 
     const start = startDate ? new Date(startDate) : new Date();
     const end = endDate ? new Date(endDate) : new Date();
@@ -415,12 +485,49 @@ exports.getPaymentReport = async (req, res, next) => {
     }
     end.setHours(23, 59, 59, 999);
 
+    // Match filter - shiftId ga ustuvorlik
+    const matchFilter = {
+      restaurantId: new mongoose.Types.ObjectId(restaurantId),
+      isPaid: true
+    };
+
+    // MUHIM: Frontend dan kelgan shiftId ga ustuvorlik
+    if (shiftId && shiftId.trim() !== '') {
+      try {
+        matchFilter.shiftId = new mongoose.Types.ObjectId(shiftId);
+      } catch (err) {
+        // Invalid ObjectId - bo'sh qaytarish
+        return res.json({
+          success: true,
+          data: {
+            startDate: start,
+            endDate: end,
+            totalRevenue: 0,
+            paymentBreakdown: []
+          }
+        });
+      }
+    } else {
+      matchFilter.createdAt = { $gte: start, $lte: end };
+      // Faqat shiftId mavjud bo'lgan orderlarni olish
+      matchFilter.shiftId = { $exists: true, $ne: null };
+    }
+
+    // MUHIM: shiftId mavjud va null emas ekanligini ta'minlash
+    matchFilter.shiftId = matchFilter.shiftId || { $exists: true, $ne: null };
+
     const paymentStats = await Order.aggregate([
       {
         $match: {
-          restaurantId: new mongoose.Types.ObjectId(restaurantId),
-          createdAt: { $gte: start, $lte: end },
-          isPaid: true
+          ...matchFilter,
+          // Qo'shimcha: shiftId bo'sh string emas ekanligini tekshirish
+          shiftId: matchFilter.shiftId
+        }
+      },
+      {
+        // Qo'shimcha filter - shiftId haqiqatan mavjud ekanligini tekshirish
+        $match: {
+          shiftId: { $exists: true, $ne: null, $ne: '' }
         }
       },
       {

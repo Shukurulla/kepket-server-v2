@@ -1,11 +1,31 @@
-const { Order, Table, Notification, Staff } = require('../models');
+const { Order, Table, Notification, Staff, Shift } = require('../models');
 const socketService = require('../services/socketService');
+const mongoose = require('mongoose');
 
 // Get kitchen orders (items that need to be prepared)
 exports.getOrders = async (req, res, next) => {
   try {
     const { restaurantId, id: cookId } = req.user;
-    const { status } = req.query;
+    const { status, shiftId } = req.query;
+
+    // MUHIM: Frontend dan kelgan shiftId ga ustuvorlik
+    let currentShiftId = null;
+    if (shiftId && shiftId.trim() !== '') {
+      // Frontend aniq shiftId yuborgan
+      try {
+        currentShiftId = new mongoose.Types.ObjectId(shiftId);
+      } catch (err) {
+        // Invalid ObjectId - bo'sh qaytarish
+        return res.json({
+          success: true,
+          data: []
+        });
+      }
+    } else {
+      // ShiftId berilmagan - aktiv smenani aniqlash
+      const activeShift = await Shift.getActiveShift(restaurantId);
+      currentShiftId = activeShift?._id;
+    }
 
     // Oshpazning assignedCategories ni olish
     const cook = await Staff.findById(cookId).select('assignedCategories role');
@@ -24,18 +44,35 @@ exports.getOrders = async (req, res, next) => {
       ? ['pending', 'approved', 'preparing', 'ready', 'served', 'cancelled']
       : ['pending', 'approved', 'preparing'];
 
-    const orders = await Order.find({
+    // Filter bo'yicha - faqat aktiv smena buyurtmalari
+    const orderFilter = {
       restaurantId,
       status: { $in: orderStatuses },
       $or: [
         { 'items.status': { $in: kitchenStatuses } },
         { status: 'cancelled' }  // Cancelled orderlar uchun itemlar status dan qat'iy nazar
       ]
-    })
+    };
+
+    // Agar shiftId bo'lsa, faqat shu smenadagi buyurtmalarni ko'rsatish
+    // MUHIM: shiftId bo'lmagan eski orderlarni chiqarmaslik
+    if (currentShiftId) {
+      orderFilter.shiftId = currentShiftId;
+    } else {
+      // Hech qanday smena yo'q - shiftId mavjud bo'lgan orderlarni ko'rsatish
+      orderFilter.shiftId = { $exists: true, $ne: null };
+    }
+
+    const rawOrders = await Order.find(orderFilter)
       .populate('tableId', 'number floor title tableNumber')
       .populate('waiterId', 'firstName lastName')
       .populate('items.foodId', 'name image preparationTime categoryId requireDoubleConfirmation')
       .sort({ createdAt: 1 });
+
+    // MUHIM: Qo'shimcha filter - shiftId bo'lmagan orderlarni chiqarib tashlash
+    const orders = rawOrders.filter(order => {
+      return order.shiftId && order.shiftId.toString().trim() !== '';
+    });
 
     // Transform to kitchen-friendly format (cook-web expects these field names)
     const kitchenOrders = orders.map(order => {
@@ -210,15 +247,29 @@ exports.updateItemStatus = async (req, res, next) => {
     await order.populate('waiterId', 'firstName lastName');
     await order.populate('items.foodId', 'name image categoryId requireDoubleConfirmation');
 
-    // Get all kitchen orders for cook-web (including ready, served, and cancelled items)
-    const rawKitchenOrders = await Order.find({
+    // Aktiv smenani olish
+    const activeShift = await Shift.getActiveShift(restaurantId);
+
+    // Kitchen orders filter - faqat aktiv smena buyurtmalari
+    const kitchenFilter = {
       restaurantId,
       status: { $in: ['pending', 'approved', 'preparing', 'ready', 'served', 'cancelled'] },
       $or: [
         { 'items.status': { $in: ['pending', 'preparing', 'ready', 'served'] } },
         { status: 'cancelled' }  // Cancelled orderlar uchun
       ]
-    }).populate('items.foodId', 'name price categoryId image requireDoubleConfirmation')
+    };
+
+    // Agar aktiv smena bo'lsa, faqat shu smenadagi buyurtmalarni ko'rsatish
+    // MUHIM: shiftId bo'lmagan eski orderlarni chiqarmaslik
+    if (activeShift) {
+      kitchenFilter.shiftId = activeShift._id;
+    } else {
+      kitchenFilter.shiftId = { $exists: true, $ne: null };
+    }
+
+    // Get all kitchen orders for cook-web (including ready, served, and cancelled items)
+    const rawKitchenOrders = await Order.find(kitchenFilter).populate('items.foodId', 'name price categoryId image requireDoubleConfirmation')
       .populate('tableId', 'title tableNumber number')
       .populate('waiterId', 'firstName lastName')
       .sort({ createdAt: -1 });
@@ -388,15 +439,29 @@ exports.startItem = async (req, res, next) => {
       order
     });
 
-    // Kitchen orders yangilash
-    const rawKitchenOrders = await Order.find({
+    // Aktiv smenani olish
+    const activeShift = await Shift.getActiveShift(restaurantId);
+
+    // Kitchen orders filter - faqat aktiv smena buyurtmalari
+    const kitchenFilter = {
       restaurantId,
       status: { $in: ['pending', 'approved', 'preparing', 'ready', 'served', 'cancelled'] },
       $or: [
         { 'items.status': { $in: ['pending', 'preparing', 'ready', 'served'] } },
         { status: 'cancelled' }
       ]
-    }).populate('items.foodId', 'name price categoryId image requireDoubleConfirmation')
+    };
+
+    // Agar aktiv smena bo'lsa, faqat shu smenadagi buyurtmalarni ko'rsatish
+    // MUHIM: shiftId bo'lmagan eski orderlarni chiqarmaslik
+    if (activeShift) {
+      kitchenFilter.shiftId = activeShift._id;
+    } else {
+      kitchenFilter.shiftId = { $exists: true, $ne: null };
+    }
+
+    // Kitchen orders yangilash
+    const rawKitchenOrders = await Order.find(kitchenFilter).populate('items.foodId', 'name price categoryId image requireDoubleConfirmation')
       .populate('tableId', 'title tableNumber number')
       .populate('waiterId', 'firstName lastName')
       .sort({ createdAt: -1 });
