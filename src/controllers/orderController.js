@@ -66,6 +66,10 @@ const getOrders = asyncHandler(async (req, res) => {
     const activeShift = await Shift.getActiveShift(restaurantId);
     if (activeShift) {
       filter.shiftId = activeShift._id;
+    } else {
+      // MUHIM: Aktiv smena yo'q - hech qanday buyurtma ko'rsatmaslik
+      // Mavjud bo'lmagan ObjectId bilan filter qilish orqali bo'sh natija qaytarish
+      filter.shiftId = new mongoose.Types.ObjectId();
     }
   }
 

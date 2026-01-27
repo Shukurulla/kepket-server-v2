@@ -13,7 +13,13 @@ exports.getAll = async (req, res, next) => {
     if (categoryId) filter.categoryId = categoryId;
 
     const tables = await Table.find(filter)
-      .populate('activeOrderId')
+      .populate({
+        path: 'activeOrderId',
+        populate: {
+          path: 'waiterId',
+          select: 'firstName lastName'
+        }
+      })
       .populate('assignedWaiterId', 'firstName lastName')
       .populate('categoryId', 'title icon')
       .sort({ title: 1 });
@@ -34,7 +40,13 @@ exports.getById = async (req, res, next) => {
     const { restaurantId } = req.user;
 
     const table = await Table.findOne({ _id: id, restaurantId })
-      .populate('activeOrderId')
+      .populate({
+        path: 'activeOrderId',
+        populate: {
+          path: 'waiterId',
+          select: 'firstName lastName'
+        }
+      })
       .populate('assignedWaiterId', 'firstName lastName');
 
     if (!table) {
@@ -86,7 +98,13 @@ exports.getMyTables = async (req, res, next) => {
       restaurantId,
       assignedWaiterId: staffId
     })
-      .populate('activeOrderId')
+      .populate({
+        path: 'activeOrderId',
+        populate: {
+          path: 'waiterId',
+          select: 'firstName lastName'
+        }
+      })
       .sort({ title: 1 });
 
     res.json({

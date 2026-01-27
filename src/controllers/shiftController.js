@@ -1,4 +1,4 @@
-const { Shift, Order } = require('../models');
+const { Shift, Order, Table } = require('../models');
 const { asyncHandler, AppError } = require('../middleware/errorHandler');
 const socketService = require('../services/socketService');
 
@@ -135,6 +135,22 @@ const closeShift = asyncHandler(async (req, res) => {
 
   // MUHIM: Orderlarni o'zgartirmaymiz!
   // Ular shu smenada qoladi - yangi smena bo'sh boshlanadi
+
+  // MUHIM: Shu smenadagi to'lanmagan orderlarning stollarini 'free' qilish
+  // Bu stollar yangi smenada bo'sh bo'lib ko'rinishi uchun
+  const unpaidOrders = await Order.find({
+    shiftId: shift._id,
+    isPaid: false,
+    status: { $nin: ['paid', 'cancelled'] }
+  }).select('tableId');
+
+  const tableIds = unpaidOrders.map(o => o.tableId).filter(Boolean);
+  if (tableIds.length > 0) {
+    await Table.updateMany(
+      { _id: { $in: tableIds } },
+      { status: 'free', activeOrderId: null }
+    );
+  }
 
   // Smenani yopish
   await shift.closeShift(userId, parseFloat(closingCash), closingNotes);
