@@ -29,6 +29,9 @@ router.get('/auto-stop/near-limit', requireRole('admin', 'cashier'), foodControl
 router.post('/auto-stop/reset-daily', requireRole('admin'), foodController.resetDailyOrderCounts);
 router.post('/auto-stop/bulk-settings', requireRole('admin'), foodController.bulkUpdateAutoStopSettings);
 
+// Get food order stats for active shift
+router.get('/shift-stats', requireRole('admin'), foodController.getShiftFoodStats);
+
 // Get single food (MUHIM: static routelardan KEYIN)
 router.get('/:id', foodController.getById);
 

@@ -1,5 +1,6 @@
-const { Food, Category } = require('../models');
+const { Food, Category, Order, Shift } = require('../models');
 const socketService = require('../services/socketService');
+const mongoose = require('mongoose');
 
 // Get all foods
 exports.getAll = async (req, res, next) => {
@@ -63,6 +64,66 @@ exports.getAll = async (req, res, next) => {
       success: true,
       data: foodsData
     });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// Get food order stats for active shift
+exports.getShiftFoodStats = async (req, res, next) => {
+  try {
+    const { restaurantId } = req.user;
+
+    // Aktiv smenani olish
+    const activeShift = await Shift.getActiveShift(restaurantId);
+    if (!activeShift) {
+      return res.json({ success: true, data: {} });
+    }
+
+    // Aktiv smenadagi barcha orderlardan taom statistikasini olish
+    const stats = await Order.aggregate([
+      {
+        $match: {
+          restaurantId: new mongoose.Types.ObjectId(restaurantId),
+          shiftId: activeShift._id,
+          status: { $ne: 'cancelled' }
+        }
+      },
+      { $unwind: '$items' },
+      {
+        $match: {
+          'items.status': { $ne: 'cancelled' },
+          'items.isDeleted': { $ne: true }
+        }
+      },
+      {
+        $group: {
+          _id: '$items.foodId',
+          totalQuantity: { $sum: '$items.quantity' },
+          orderCount: { $addToSet: '$_id' }
+        }
+      },
+      {
+        $project: {
+          _id: 1,
+          totalQuantity: 1,
+          orderCount: { $size: '$orderCount' }
+        }
+      }
+    ]);
+
+    // foodId -> { orderCount, totalQuantity } map
+    const result = {};
+    stats.forEach(s => {
+      if (s._id) {
+        result[s._id.toString()] = {
+          orderCount: s.orderCount,
+          totalQuantity: s.totalQuantity
+        };
+      }
+    });
+
+    res.json({ success: true, data: result });
   } catch (error) {
     next(error);
   }
