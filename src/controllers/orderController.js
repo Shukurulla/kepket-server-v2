@@ -1512,28 +1512,62 @@ const cancelItem = asyncHandler(async (req, res) => {
   order.cancelItem(itemId, userId, fullName, reason);
   await order.save();
 
+  // Barcha itemlar cancelled bo'lsa, orderni ham cancel qilish
+  const activeItems = order.items.filter(i => !i.isDeleted && i.status !== 'cancelled');
+  let orderCancelled = false;
+
+  if (activeItems.length === 0) {
+    // Barcha itemlar bekor qilindi - orderni ham bekor qilish
+    order.status = 'cancelled';
+    order.cancelledAt = new Date();
+    order.cancelledBy = userId;
+    order.cancelReason = 'Barcha taomlar bekor qilindi';
+    await order.save();
+    orderCancelled = true;
+
+    // Stolni bo'shatish
+    if (order.tableId) {
+      const Table = require('../models/table');
+      await Table.findByIdAndUpdate(order.tableId, {
+        status: 'free',
+        activeOrderId: null
+      });
+    }
+  }
+
   // Populate for response
-  await order.populate('tableId', 'title tableNumber');
+  await order.populate('tableId', 'title tableNumber hasHourlyCharge hourlyChargeAmount');
   await order.populate('waiterId', 'firstName lastName');
 
-  emitOrderEvent(restaurantId.toString(), ORDER_EVENTS.UPDATED, {
-    order,
-    action: 'item_cancelled',
-    itemId,
-    cancelledItem: {
-      foodName: item.foodName,
-      quantity: item.quantity,
-      price: item.price,
-      total: item.price * item.quantity,
-      reason: reason
-    }
-  });
+  // Event yuborish
+  if (orderCancelled) {
+    // Order butunlay bekor qilindi
+    emitOrderEvent(restaurantId.toString(), ORDER_EVENTS.CANCELLED, {
+      order,
+      reason: 'Barcha taomlar bekor qilindi'
+    });
+  } else {
+    // Faqat item bekor qilindi
+    emitOrderEvent(restaurantId.toString(), ORDER_EVENTS.UPDATED, {
+      order,
+      action: 'item_cancelled',
+      itemId,
+      cancelledItem: {
+        foodName: item.foodName,
+        quantity: item.quantity,
+        price: item.price,
+        total: item.price * item.quantity,
+        reason: reason
+      }
+    });
+  }
 
   res.json({
     success: true,
-    message: 'Item bekor qilindi',
+    message: orderCancelled ? 'Barcha taomlar bekor qilindi, buyurtma bekor qilindi' : 'Item bekor qilindi',
     data: {
       order,
+      orderCancelled,
       cancelledItem: {
         _id: itemId,
         foodName: item.foodName,
