@@ -1,4 +1,4 @@
-const { Order, Staff, Category, Food } = require('../models');
+const { Order, Staff, Category, Food, Shift } = require('../models');
 const mongoose = require('mongoose');
 
 /**
@@ -102,13 +102,23 @@ exports.getFullReport = async (req, res, next) => {
 
     const { start, end } = dateRange;
 
-    // Faqat TO'LANGAN buyurtmalarni olish
-    const paidOrders = await Order.find({
+    // Aktiv smenani tekshirish (bugungi hisobot uchun shift bo'yicha filter)
+    const orderQuery = {
       restaurantId: new mongoose.Types.ObjectId(restaurantId),
       isPaid: true,
       paidAt: { $gte: start, $lte: end },
       status: { $ne: 'cancelled' }
-    }).lean();
+    };
+
+    // Bugungi hisobot uchun aktiv smena bo'yicha filter
+    if (period === 'today') {
+      const activeShift = await Shift.getActiveShift(restaurantId);
+      if (activeShift) {
+        orderQuery.shiftId = activeShift._id;
+      }
+    }
+
+    const paidOrders = await Order.find(orderQuery).lean();
 
     // ==========================================
     // 1. SOTUV HISOBOTI (SALES REPORT)
@@ -237,6 +247,13 @@ exports.getFullReport = async (req, res, next) => {
     const totalWaiterRevenue = waiters.reduce((sum, w) => sum + w.totalRevenue, 0);
     const totalWaiterSalary = Math.round(totalWaiterRevenue * 0.05);
 
+    // Kategoriya nomlarini bazadan olish (food va category report uchun)
+    const allCategories = await Category.find({}).lean();
+    const categoryNameMap = new Map();
+    allCategories.forEach(cat => {
+      categoryNameMap.set(cat._id.toString(), cat.title || cat.name || 'Nomsiz');
+    });
+
     // ==========================================
     // 4. TAOMLAR HISOBOTI (FOOD REPORT)
     // ==========================================
@@ -254,7 +271,7 @@ exports.getFullReport = async (req, res, next) => {
             _id: foodId,
             name: item.foodName,
             categoryId: item.categoryId,
-            categoryName: item.categoryName || 'Nomsiz',
+            categoryName: categoryNameMap.get(item.categoryId?.toString()) || item.categoryName || 'Nomsiz',
             totalQuantity: 0,
             totalRevenue: 0,
             orderCount: 0,
@@ -283,7 +300,7 @@ exports.getFullReport = async (req, res, next) => {
         if (item.isDeleted || item.status === 'cancelled') return;
 
         const categoryId = item.categoryId?.toString() || 'uncategorized';
-        const categoryName = item.categoryName || 'Nomsiz';
+        const categoryName = categoryNameMap.get(categoryId) || item.categoryName || 'Nomsiz';
 
         if (!categoryMap.has(categoryId)) {
           categoryMap.set(categoryId, {
@@ -447,8 +464,16 @@ exports.getPaymentsList = async (req, res, next) => {
       query.paymentType = paymentType;
     }
 
+    // Bugungi hisobot uchun aktiv smena bo'yicha filter
+    if (period === 'today') {
+      const activeShift = await Shift.getActiveShift(restaurantId);
+      if (activeShift) {
+        query.shiftId = activeShift._id;
+      }
+    }
+
     const payments = await Order.find(query)
-      .select('orderNumber tableName waiterName grandTotal subtotal serviceCharge paymentType paymentSplit paidAt items')
+      .select('orderNumber tableName waiterName grandTotal subtotal serviceCharge paymentType paymentSplit paidAt items shiftId')
       .sort({ paidAt: -1 })
       .lean();
 

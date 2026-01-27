@@ -769,6 +769,11 @@ const addItems = asyncHandler(async (req, res) => {
     orderItems.push(newItem);
   }
 
+  // Yangi item qo'shilganda, order statusi 'ready' yoki 'served' bo'lsa 'preparing' ga qaytarish
+  if (['ready', 'served'].includes(order.status)) {
+    order.status = 'preparing';
+  }
+
   await order.save();
 
   // Populate for proper data
