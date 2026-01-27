@@ -15,7 +15,7 @@ exports.getAll = async (req, res, next) => {
     // Aktiv smenani olish
     const activeShift = await Shift.findOne({
       restaurantId,
-      status: 'open'
+      status: 'active'
     });
 
     const tables = await Table.find(filter)
@@ -72,7 +72,7 @@ exports.getById = async (req, res, next) => {
     // Aktiv smenani olish
     const activeShift = await Shift.findOne({
       restaurantId,
-      status: 'open'
+      status: 'active'
     });
 
     const table = await Table.findOne({ _id: id, restaurantId })
@@ -130,7 +130,7 @@ exports.getByStatus = async (req, res, next) => {
     // Aktiv smenani olish
     const activeShift = await Shift.findOne({
       restaurantId,
-      status: 'open'
+      status: 'active'
     });
 
     const tables = await Table.find({ restaurantId })
@@ -171,7 +171,7 @@ exports.getMyTables = async (req, res, next) => {
     // Aktiv smenani olish
     const activeShift = await Shift.findOne({
       restaurantId,
-      status: 'open'
+      status: 'active'
     });
 
     const tables = await Table.find({
@@ -514,7 +514,7 @@ exports.getWithOrder = async (req, res, next) => {
     // Aktiv smenani olish
     const activeShift = await Shift.findOne({
       restaurantId,
-      status: 'open'
+      status: 'active'
     });
 
     const table = await Table.findOne({ _id: id, restaurantId });
@@ -571,7 +571,7 @@ exports.getFloorSummary = async (req, res, next) => {
     // Aktiv smenani olish
     const activeShift = await Shift.findOne({
       restaurantId,
-      status: 'open'
+      status: 'active'
     });
 
     // Aktiv smenaning orderlari bilan band stollarni olish

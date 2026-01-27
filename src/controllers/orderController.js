@@ -57,12 +57,14 @@ const getOrders = asyncHandler(async (req, res) => {
 
   // Smena filteri
   // 1. Agar shiftId berilgan bo'lsa - shu smenadagi buyurtmalar
-  // 2. Agar date/startDate berilgan bo'lsa - sana bo'yicha filter (smena filter yo'q)
-  // 3. Aks holda (va allShifts=true bo'lmasa) - avtomatik aktiv smena buyurtmalari
+  // 2. Agar waiterId berilgan bo'lsa (waiter app) - DOIM aktiv smena bo'yicha filter
+  // 3. Agar date/startDate berilgan bo'lsa va waiterId yo'q (admin) - sana bo'yicha filter (smena filter yo'q)
+  // 4. Aks holda (va allShifts=true bo'lmasa) - avtomatik aktiv smena buyurtmalari
   if (shiftId) {
     filter.shiftId = shiftId;
-  } else if (!date && !startDate && !endDate && allShifts !== 'true') {
-    // Agar hech qanday sana/smena filteri bo'lmasa, aktiv smena buyurtmalarini ko'rsatish
+  } else if (waiterId || (!date && !startDate && !endDate && allShifts !== 'true')) {
+    // Waiter app uchun DOIM aktiv smena bo'yicha filter qilish
+    // Admin uchun esa faqat date berilmaganda
     const activeShift = await Shift.getActiveShift(restaurantId);
     if (activeShift) {
       filter.shiftId = activeShift._id;
