@@ -38,12 +38,17 @@ exports.getAll = async (req, res, next) => {
       if (tableObj.activeOrderId && tableObj.status === 'occupied') {
         const order = tableObj.activeOrderId;
 
-        // Aktiv smena yo'q yoki order shu smenaga tegishli emas
-        if (!activeShift || !order.shiftId || order.shiftId.toString() !== activeShift._id.toString()) {
-          // Stolni bo'sh qilib ko'rsatish
+        // Aktiv smena yo'q bo'lsa - stolni bo'sh ko'rsatish
+        if (!activeShift) {
           tableObj.status = 'free';
           tableObj.activeOrderId = null;
         }
+        // Order boshqa smenaga tegishli bo'lsa - stolni bo'sh ko'rsatish
+        else if (order.shiftId && order.shiftId.toString() !== activeShift._id.toString()) {
+          tableObj.status = 'free';
+          tableObj.activeOrderId = null;
+        }
+        // Agar order shiftId yo'q bo'lsa - aktiv smenada yaratilgan deb hisoblaymiz (band qoladi)
       }
 
       return tableObj;
@@ -91,7 +96,13 @@ exports.getById = async (req, res, next) => {
     const tableObj = table.toObject();
     if (tableObj.activeOrderId && tableObj.status === 'occupied') {
       const order = tableObj.activeOrderId;
-      if (!activeShift || !order.shiftId || order.shiftId.toString() !== activeShift._id.toString()) {
+      // Aktiv smena yo'q bo'lsa - stolni bo'sh ko'rsatish
+      if (!activeShift) {
+        tableObj.status = 'free';
+        tableObj.activeOrderId = null;
+      }
+      // Order boshqa smenaga tegishli bo'lsa - stolni bo'sh ko'rsatish
+      else if (order.shiftId && order.shiftId.toString() !== activeShift._id.toString()) {
         tableObj.status = 'free';
         tableObj.activeOrderId = null;
       }
@@ -132,7 +143,10 @@ exports.getByStatus = async (req, res, next) => {
       const tableObj = table.toObject();
       if (tableObj.activeOrderId && tableObj.status === 'occupied') {
         const order = tableObj.activeOrderId;
-        if (!activeShift || !order.shiftId || order.shiftId.toString() !== activeShift._id.toString()) {
+        if (!activeShift) {
+          tableObj.status = 'free';
+          tableObj.activeOrderId = null;
+        } else if (order.shiftId && order.shiftId.toString() !== activeShift._id.toString()) {
           tableObj.status = 'free';
           tableObj.activeOrderId = null;
         }
@@ -178,7 +192,10 @@ exports.getMyTables = async (req, res, next) => {
       const tableObj = table.toObject();
       if (tableObj.activeOrderId && tableObj.status === 'occupied') {
         const order = tableObj.activeOrderId;
-        if (!activeShift || !order.shiftId || order.shiftId.toString() !== activeShift._id.toString()) {
+        if (!activeShift) {
+          tableObj.status = 'free';
+          tableObj.activeOrderId = null;
+        } else if (order.shiftId && order.shiftId.toString() !== activeShift._id.toString()) {
           tableObj.status = 'free';
           tableObj.activeOrderId = null;
         }
@@ -519,8 +536,14 @@ exports.getWithOrder = async (req, res, next) => {
 
       // MUHIM: Order aktiv smenaga tegishli emasligini tekshirish
       if (activeOrder) {
-        if (!activeShift || !activeOrder.shiftId || activeOrder.shiftId.toString() !== activeShift._id.toString()) {
-          // Eski smenaning orderi - ko'rsatmaslik
+        // Aktiv smena yo'q bo'lsa - ko'rsatmaslik
+        if (!activeShift) {
+          activeOrder = null;
+          tableObj.status = 'free';
+          tableObj.activeOrderId = null;
+        }
+        // Order boshqa smenaga tegishli bo'lsa - ko'rsatmaslik
+        else if (activeOrder.shiftId && activeOrder.shiftId.toString() !== activeShift._id.toString()) {
           activeOrder = null;
           tableObj.status = 'free';
           tableObj.activeOrderId = null;
