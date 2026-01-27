@@ -428,9 +428,10 @@ exports.getMenu = async (req, res, next) => {
 
     const menu = await Promise.all(
       categories.map(async (category) => {
+        // Barcha taomlarni qaytarish (stop listdagilar ham)
+        // Waiter app ularni disabled holatda ko'rsatadi
         const foods = await Food.find({
-          categoryId: category._id,
-          isAvailable: true
+          categoryId: category._id
         }).sort({ order: 1, foodName: 1 });
 
         // Yangi kun uchun dailyOrderCount ni tekshirish

@@ -45,7 +45,13 @@ const getOrders = asyncHandler(async (req, res) => {
   if (status) filter.status = status;
   if (waiterId) filter.waiterId = waiterId;
   if (tableId) filter.tableId = tableId;
-  if (isPaid !== undefined) filter.isPaid = isPaid === 'true';
+  if (isPaid !== undefined) {
+    filter.isPaid = isPaid === 'true';
+    // To'langan orderlarni so'raganda bekor qilinganlarni chiqarmaslik
+    if (isPaid === 'true') {
+      filter.status = { $ne: 'cancelled' };
+    }
+  }
   if (shiftId) filter.shiftId = shiftId;
 
   // Date filter with time support (Tashkent timezone UTC+5)

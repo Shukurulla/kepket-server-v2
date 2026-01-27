@@ -19,6 +19,13 @@ router.get('/orders/:id', kitchenController.getOrder);
 // Start preparing order (cook)
 router.post('/orders/:orderId/start', requireRole('cook', 'admin'), kitchenController.startOrder);
 
+// Start preparing single item (cook) - Boshlandi button
+router.post(
+  '/orders/:orderId/items/:itemId/start',
+  requireRole('cook', 'admin'),
+  kitchenController.startItem
+);
+
 // Complete order (cook)
 router.post('/orders/:orderId/complete', requireRole('cook', 'admin'), kitchenController.completeOrder);
 

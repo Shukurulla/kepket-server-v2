@@ -8,6 +8,7 @@ const staffRoutes = require('./staff.routes');
 const categoryRoutes = require('./category.routes');
 const foodRoutes = require('./food.routes');
 const tableRoutes = require('./table.routes');
+const tableCategoryRoutes = require('./tableCategory.routes');
 const kitchenRoutes = require('./kitchen.routes');
 const notificationRoutes = require('./notification.routes');
 const reportRoutes = require('./report.routes');
@@ -24,6 +25,7 @@ router.use('/staff', staffRoutes);
 router.use('/categories', categoryRoutes);
 router.use('/foods', foodRoutes);
 router.use('/tables', tableRoutes);
+router.use('/table-categories', tableCategoryRoutes);
 router.use('/kitchen', kitchenRoutes);
 router.use('/notifications', notificationRoutes);
 router.use('/reports', reportRoutes);
@@ -55,6 +57,7 @@ router.get('/', (req, res) => {
       categories: '/api/categories',
       foods: '/api/foods',
       tables: '/api/tables',
+      tableCategories: '/api/table-categories',
       kitchen: '/api/kitchen',
       notifications: '/api/notifications',
       reports: '/api/reports',

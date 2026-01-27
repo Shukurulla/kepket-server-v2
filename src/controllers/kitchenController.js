@@ -325,6 +325,136 @@ exports.updateItemStatus = async (req, res, next) => {
   }
 };
 
+// Start preparing a single item (Boshlandi button)
+exports.startItem = async (req, res, next) => {
+  try {
+    const { orderId, itemId } = req.params;
+    const { restaurantId, id: cookId, firstName, lastName } = req.user;
+    const cookName = `${firstName || ''} ${lastName || ''}`.trim();
+
+    const order = await Order.findOne({ _id: orderId, restaurantId });
+
+    if (!order) {
+      return res.status(404).json({
+        success: false,
+        message: 'Order not found'
+      });
+    }
+
+    // itemId raqam (index) yoki ObjectId bo'lishi mumkin
+    let item;
+    let actualItemIndex;
+    const itemIndex = parseInt(itemId);
+    if (!isNaN(itemIndex) && itemIndex >= 0 && itemIndex < order.items.length) {
+      item = order.items[itemIndex];
+      actualItemIndex = itemIndex;
+    } else {
+      item = order.items.id(itemId);
+      actualItemIndex = order.items.findIndex(i => i._id.toString() === itemId);
+    }
+
+    if (!item) {
+      return res.status(404).json({
+        success: false,
+        message: 'Item not found'
+      });
+    }
+
+    // Agar allaqachon boshlangan bo'lsa
+    if (item.isStarted) {
+      return res.status(400).json({
+        success: false,
+        message: 'Item already started'
+      });
+    }
+
+    // Itemni boshlash
+    item.markStarted(cookId, cookName);
+    await order.save();
+
+    // Populate for response
+    await order.populate('tableId', 'number floor title tableNumber');
+    await order.populate('waiterId', 'firstName lastName');
+    await order.populate('items.foodId', 'name image categoryId requireDoubleConfirmation');
+
+    // Socket event - item boshlandi
+    socketService.emitToRestaurant(restaurantId, 'kitchen:item-started', {
+      orderId,
+      itemId: item._id,
+      itemIndex: actualItemIndex,
+      startedAt: item.startedAt,
+      startedBy: cookId,
+      startedByName: cookName,
+      order
+    });
+
+    // Kitchen orders yangilash
+    const rawKitchenOrders = await Order.find({
+      restaurantId,
+      status: { $in: ['pending', 'approved', 'preparing', 'ready', 'served', 'cancelled'] },
+      $or: [
+        { 'items.status': { $in: ['pending', 'preparing', 'ready', 'served'] } },
+        { status: 'cancelled' }
+      ]
+    }).populate('items.foodId', 'name price categoryId image requireDoubleConfirmation')
+      .populate('tableId', 'title tableNumber number')
+      .populate('waiterId', 'firstName lastName')
+      .sort({ createdAt: -1 });
+
+    const kitchenOrders = rawKitchenOrders.map(o => {
+      const isCancelledOrder = o.status === 'cancelled';
+      const items = o.items
+        .map((i, originalIdx) => ({ i, originalIdx }))
+        .filter(({ i }) => isCancelledOrder || ['pending', 'preparing', 'ready', 'served'].includes(i.status))
+        .map(({ i, originalIdx }) => ({
+          ...i.toObject(),
+          kitchenStatus: i.status,
+          name: i.foodId?.name || i.foodName,
+          requireDoubleConfirmation: i.foodId?.requireDoubleConfirmation || false,
+          categoryId: i.foodId?.categoryId?.toString() || null,
+          originalIndex: originalIdx
+        }));
+      return {
+        _id: o._id,
+        orderId: o._id,
+        orderNumber: o.orderNumber,
+        tableId: o.tableId,
+        tableName: o.orderType === 'saboy'
+          ? `Saboy #${o.saboyNumber || o.orderNumber}`
+          : (o.tableId?.title || o.tableName || `Stol ${o.tableId?.number || o.tableNumber || ''}`),
+        tableNumber: o.tableId?.number || o.tableNumber,
+        waiterId: o.waiterId,
+        waiterName: o.waiterId ? `${o.waiterId.firstName || ''} ${o.waiterId.lastName || ''}`.trim() : '',
+        items,
+        status: o.status,
+        createdAt: o.createdAt,
+        restaurantId: o.restaurantId,
+        orderType: o.orderType || 'dine-in',
+        saboyNumber: o.saboyNumber
+      };
+    }).filter(o => o.items.length > 0);
+
+    // cook-web uchun kitchen_orders_updated yuborish
+    await socketService.emitFilteredKitchenOrders(restaurantId, kitchenOrders, 'kitchen_orders_updated');
+
+    res.json({
+      success: true,
+      message: 'Item preparation started',
+      data: {
+        orderId,
+        itemId: item._id,
+        itemIndex: actualItemIndex,
+        startedAt: item.startedAt,
+        startedBy: cookId,
+        startedByName: cookName,
+        order
+      }
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
 // Mark all items in order as preparing
 exports.startOrder = async (req, res, next) => {
   try {

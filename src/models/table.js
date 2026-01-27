@@ -9,6 +9,13 @@ const tableSchema = new mongoose.Schema({
     index: true
   },
 
+  // Stol kategoriyasi (Divan, Stol, Kabina, etc.)
+  categoryId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'TableCategory',
+    index: true
+  },
+
   title: {
     type: String,
     required: [true, 'Table title is required'],
@@ -147,10 +154,19 @@ tableSchema.virtual('activeOrder', {
   justOne: true
 });
 
+// Virtual: Category info
+tableSchema.virtual('category', {
+  ref: 'TableCategory',
+  localField: 'categoryId',
+  foreignField: '_id',
+  justOne: true
+});
+
 // Static: Find tables by restaurant
 tableSchema.statics.findByRestaurant = function(restaurantId) {
   return this.find({ restaurantId })
     .populate('assignedWaiterId', 'firstName lastName')
+    .populate('categoryId', 'title icon')
     .sort({ title: 1 });
 };
 

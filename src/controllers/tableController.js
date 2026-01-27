@@ -5,15 +5,17 @@ const socketService = require('../services/socketService');
 exports.getAll = async (req, res, next) => {
   try {
     const { restaurantId } = req.user;
-    const { status, location } = req.query;
+    const { status, location, categoryId } = req.query;
 
     const filter = { restaurantId };
     if (status) filter.status = status;
     if (location) filter.location = location;
+    if (categoryId) filter.categoryId = categoryId;
 
     const tables = await Table.find(filter)
       .populate('activeOrderId')
       .populate('assignedWaiterId', 'firstName lastName')
+      .populate('categoryId', 'title icon')
       .sort({ title: 1 });
 
     res.json({
@@ -107,7 +109,8 @@ exports.create = async (req, res, next) => {
       hasHourlyCharge,
       hourlyChargeAmount,
       surcharge,
-      assignedWaiterId
+      assignedWaiterId,
+      categoryId
     } = req.body;
 
     if (!title) {
@@ -139,6 +142,7 @@ exports.create = async (req, res, next) => {
       hourlyChargeAmount: hourlyChargeAmount || 0,
       surcharge: surcharge || 0,
       assignedWaiterId,
+      categoryId: categoryId || null,
       status: 'free'
     });
 

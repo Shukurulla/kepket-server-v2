@@ -38,6 +38,20 @@ const orderItemSchema = new mongoose.Schema({
     enum: ['pending', 'preparing', 'ready', 'served', 'cancelled'],
     default: 'pending'
   },
+
+  // Tayyorlash boshlandi - oshpaz boshlagan vaqt
+  isStarted: {
+    type: Boolean,
+    default: false
+  },
+  startedAt: Date,
+  startedBy: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Staff'
+  },
+  startedByName: String,
+
+  // Tayyor bo'lgan vaqt va davomiyligi
   readyQuantity: {
     type: Number,
     default: 0,
@@ -45,6 +59,12 @@ const orderItemSchema = new mongoose.Schema({
   },
   readyAt: Date,
   servedAt: Date,
+
+  // Tayyorlash davomiyligi (millisekundlarda)
+  preparationDuration: {
+    type: Number,
+    default: 0
+  },
 
   // Item history - kim qo'shganini kuzatish (TZ 3.2)
   addedAt: {
@@ -103,12 +123,28 @@ orderItemSchema.methods.softDelete = function(deletedById = null) {
   if (deletedById) this.deletedBy = deletedById;
 };
 
+// Tayyorlashni boshlash
+orderItemSchema.methods.markStarted = function(startedById = null, startedByName = null) {
+  this.isStarted = true;
+  this.startedAt = new Date();
+  this.status = 'preparing';
+  if (startedById) this.startedBy = startedById;
+  if (startedByName) this.startedByName = startedByName;
+};
+
+// Tayyorlashni tugatish - davomiylikni hisoblash
 orderItemSchema.methods.markReady = function(quantity = null) {
   const readyQty = quantity !== null ? quantity : this.quantity;
   this.readyQuantity = Math.min(readyQty, this.quantity);
   if (this.readyQuantity >= this.quantity) {
     this.status = 'ready';
     this.readyAt = new Date();
+    this.isStarted = false; // Tayyor bo'lganda isStarted false
+
+    // Tayyorlash davomiyligini hisoblash
+    if (this.startedAt) {
+      this.preparationDuration = this.readyAt.getTime() - new Date(this.startedAt).getTime();
+    }
   } else if (this.readyQuantity > 0) {
     this.status = 'preparing';
   }
@@ -746,7 +782,8 @@ orderSchema.statics.getDailySummary = async function(restaurantId, date = new Da
       $match: {
         restaurantId: new mongoose.Types.ObjectId(restaurantId),
         createdAt: { $gte: startOfDay, $lte: endOfDay },
-        isDeleted: { $ne: true }
+        isDeleted: { $ne: true },
+        status: { $ne: 'cancelled' } // Bekor qilingan orderlarni hisoblamaslik
       }
     },
     {

@@ -94,6 +94,11 @@ class SocketService {
       await this.handleCallWaiter(socket, data);
     });
 
+    // Request print check from waiter app
+    socket.on('request_print_check', async (data) => {
+      await this.handleRequestPrintCheck(socket, data);
+    });
+
     // Disconnect
     socket.on('disconnect', async () => {
       await this.handleDisconnect(socket);
@@ -558,25 +563,55 @@ class SocketService {
   async handleAddOrderItems(socket, data) {
     try {
       const { Order } = require('../models');
-      const { orderId, restaurantId, newItems, tableName, tableNumber, waiterName } = data;
+      const { orderId, restaurantId, newItems, tableName, tableNumber, waiterName, waiterId } = data;
 
       console.log('add_order_items event received:', { orderId, restaurantId, newItemsCount: newItems?.length });
 
       if (!orderId || !restaurantId || !newItems || newItems.length === 0) {
         console.log('add_order_items: Missing required data');
+        socket.emit('add_order_items_error', { message: 'Missing required data' });
         return;
       }
 
-      // Get the updated order
-      const order = await Order.findById(orderId)
+      // Get the order first (without populate to modify)
+      const order = await Order.findById(orderId);
+
+      if (!order) {
+        console.log('add_order_items: Order not found:', orderId);
+        socket.emit('add_order_items_error', { message: 'Order not found' });
+        return;
+      }
+
+      // Add new items to the order - CRITICAL FIX!
+      const itemsToAdd = newItems.map(item => ({
+        foodId: item.foodId || item._id,
+        foodName: item.foodName || item.name,
+        categoryId: item.category || item.categoryId,
+        quantity: item.quantity || 1,
+        price: item.price || 0,
+        status: 'pending',
+        addedAt: new Date()
+      }));
+
+      // Push new items to order
+      order.items.push(...itemsToAdd);
+
+      // Save the order
+      await order.save();
+      console.log('add_order_items: Items saved to database, new items count:', itemsToAdd.length);
+
+      // Now get the fully populated order for emitting
+      const populatedOrder = await Order.findById(orderId)
         .populate('items.foodId', 'name price categoryId image')
         .populate('tableId', 'title tableNumber number')
         .populate('waiterId', 'firstName lastName');
 
-      if (!order) {
-        console.log('add_order_items: Order not found:', orderId);
-        return;
-      }
+      // Emit success to the waiter
+      socket.emit('add_order_items_success', {
+        orderId,
+        itemsAdded: itemsToAdd.length,
+        message: 'Items added successfully'
+      });
 
       // Get all kitchen orders
       const rawKitchenOrders = await Order.find({
@@ -620,29 +655,37 @@ class SocketService {
         };
       }).filter(o => o.items.length > 0);
 
-      // Format newItems for cook panel
-      const formattedNewItems = newItems.map((item, idx) => ({
-        foodId: item.foodId || item._id,
-        foodName: item.foodName || item.name,
-        quantity: item.quantity || 1,
-        price: item.price || 0,
+      // Format newItems for cook panel - use the added items with their original indices
+      const startIndex = populatedOrder.items.length - itemsToAdd.length;
+      const formattedNewItems = itemsToAdd.map((item, idx) => ({
+        foodId: item.foodId,
+        foodName: item.foodName,
+        categoryId: item.categoryId,
+        quantity: item.quantity,
+        price: item.price,
         status: 'pending',
         kitchenStatus: 'pending',
-        originalIndex: order.items.length - newItems.length + idx
+        originalIndex: startIndex + idx
       }));
 
       console.log('add_order_items: Emitting to cooks, newItems:', formattedNewItems.length);
 
+      // Emit order:updated to all clients
+      this.emitToRestaurant(restaurantId, 'order:updated', {
+        order: populatedOrder,
+        action: 'items_added'
+      });
+
       // Emit to admin
       this.emitToRole(restaurantId, 'admin', 'new_kitchen_order', {
-        order: order,
+        order: populatedOrder,
         allOrders: kitchenOrders,
         isNewOrder: false,
         newItems: formattedNewItems
       });
 
       // Emit to cooks (filtered by categories)
-      await this.emitFilteredNewKitchenOrderForAddedItems(restaurantId, order, kitchenOrders, formattedNewItems);
+      await this.emitFilteredNewKitchenOrderForAddedItems(restaurantId, populatedOrder, kitchenOrders, formattedNewItems);
 
       // Also emit kitchen_orders_updated
       await this.emitFilteredKitchenOrders(restaurantId, kitchenOrders, 'kitchen_orders_updated');
@@ -686,6 +729,96 @@ class SocketService {
 
     } catch (error) {
       console.error('Call waiter error:', error);
+    }
+  }
+
+  /**
+   * Handle request_print_check - waiter requests to print check for an order
+   */
+  async handleRequestPrintCheck(socket, data) {
+    try {
+      const { Order } = require('../models');
+      const { orderId, restaurantId, waiterId, waiterName } = data;
+
+      console.log('request_print_check event received:', { orderId, restaurantId, waiterId });
+
+      if (!orderId || !restaurantId) {
+        socket.emit('print_check_error', {
+          success: false,
+          message: 'Order ID va Restaurant ID kerak'
+        });
+        return;
+      }
+
+      // Get the order with all necessary data
+      const order = await Order.findById(orderId)
+        .populate('items.foodId', 'name price categoryId')
+        .populate('tableId', 'title tableNumber number')
+        .populate('waiterId', 'firstName lastName');
+
+      if (!order) {
+        socket.emit('print_check_error', {
+          success: false,
+          message: 'Buyurtma topilmadi'
+        });
+        return;
+      }
+
+      // Calculate totals
+      const subtotal = order.items
+        .filter(item => item.status !== 'cancelled' && !item.isDeleted)
+        .reduce((sum, item) => sum + (item.price * item.quantity), 0);
+      const serviceFee = Math.round(subtotal * 0.1); // 10% service fee
+      const total = subtotal + serviceFee;
+
+      // Format order data for printing
+      const printData = {
+        orderId: order._id.toString(),
+        orderNumber: order.orderNumber,
+        tableName: order.orderType === 'saboy'
+          ? `Saboy #${order.saboyNumber || order.orderNumber}`
+          : (order.tableId?.title || order.tableName || `Stol ${order.tableId?.number || order.tableNumber || ''}`),
+        tableNumber: order.tableId?.number || order.tableNumber,
+        waiterName: order.waiterId
+          ? `${order.waiterId.firstName || ''} ${order.waiterId.lastName || ''}`.trim()
+          : (order.waiterName || waiterName || ''),
+        items: order.items
+          .filter(item => item.status !== 'cancelled' && !item.isDeleted)
+          .map(item => ({
+            name: item.foodId?.name || item.foodName,
+            quantity: item.quantity,
+            price: item.price
+          })),
+        subtotal,
+        serviceFee,
+        total,
+        orderType: order.orderType || 'dine-in',
+        createdAt: order.createdAt,
+        requestedBy: waiterName || 'Ofitsiant',
+        requestedAt: new Date().toISOString()
+      };
+
+      console.log('Emitting print_check_requested to cashiers:', printData.orderId);
+
+      // Emit to cashiers to print the check
+      this.emitToRole(restaurantId, 'cashier', 'print_check_requested', printData);
+
+      // Also emit to admin
+      this.emitToRole(restaurantId, 'admin', 'print_check_requested', printData);
+
+      // Confirm to waiter that request was sent
+      socket.emit('print_check_sent', {
+        success: true,
+        orderId: order._id.toString(),
+        message: 'Chek chiqarish so\'rovi yuborildi'
+      });
+
+    } catch (error) {
+      console.error('Request print check error:', error);
+      socket.emit('print_check_error', {
+        success: false,
+        message: error.message || 'Xatolik yuz berdi'
+      });
     }
   }
 
