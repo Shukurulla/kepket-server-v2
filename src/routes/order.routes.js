@@ -28,7 +28,7 @@ router.get('/waiter-income/:waiterId', orderController.getWaiterDailyIncome);
 router.get('/my-income', requireRole('waiter'), orderController.getMyDailyIncome);
 
 // CRUD
-router.post('/', deduplication(3000), orderController.createOrder);
+router.post('/', deduplication(5000), orderController.createOrder);
 router.get('/:id', orderController.getOrder);
 router.patch('/:id', orderController.updateOrder);
 router.delete('/:id', orderController.deleteOrder);
