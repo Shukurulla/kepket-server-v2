@@ -296,12 +296,25 @@ class SocketService {
    */
   async handlePostOrder(socket, data) {
     try {
-      const { Order, Table } = require('../models');
+      const { Order, Table, Shift } = require('../models');
+
+      // MUHIM: Aktiv smenani tekshirish
+      const activeShift = await Shift.getActiveShift(data.restaurantId);
+      if (!activeShift) {
+        // Aktiv smena yo'q - xatolik qaytarish
+        socket.emit('order_error', {
+          success: false,
+          message: 'Aktiv smena yo\'q. Buyurtma yaratish uchun admin smenani ochishi kerak.',
+          code: 'NO_ACTIVE_SHIFT'
+        });
+        return;
+      }
 
       const orderNumber = await Order.getNextOrderNumber(data.restaurantId);
 
       const order = new Order({
         restaurantId: data.restaurantId,
+        shiftId: activeShift._id, // MUHIM: ShiftId qo'shildi
         orderNumber,
         orderType: 'dine-in',
         tableId: data.tableId,
@@ -342,6 +355,7 @@ class SocketService {
       try {
         const rawKitchenOrders = await Order.find({
           restaurantId: data.restaurantId,
+          shiftId: activeShift._id, // MUHIM: Faqat joriy smena buyurtmalari
           status: { $in: ['pending', 'preparing', 'approved', 'ready'] },
           'items.status': { $in: ['pending', 'preparing', 'ready'] }
         }).populate('items.foodId', 'name price categoryId image')
