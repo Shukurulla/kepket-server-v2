@@ -82,39 +82,46 @@ const getDateRangeByPeriod = (period) => {
 exports.getFullReport = async (req, res, next) => {
   try {
     const { restaurantId } = req.user;
-    const { period = 'today', startDate, endDate, startTime, endTime } = req.query;
+    const { period = 'today', startDate, endDate, startTime, endTime, shiftId } = req.query;
 
-    // Sana oralig'ini aniqlash
-    let dateRange;
-    if (startDate || endDate) {
-      dateRange = getTashkentDateRange(startDate, endDate, startTime, endTime);
-    } else {
-      dateRange = getDateRangeByPeriod(period);
-      if (startTime || endTime) {
-        dateRange = getTashkentDateRange(
-          dateRange.start.toISOString().split('T')[0],
-          dateRange.end.toISOString().split('T')[0],
-          startTime,
-          endTime
-        );
-      }
-    }
-
-    const { start, end } = dateRange;
-
-    // Aktiv smenani tekshirish (bugungi hisobot uchun shift bo'yicha filter)
+    // Shift bo'yicha filter
     const orderQuery = {
       restaurantId: new mongoose.Types.ObjectId(restaurantId),
       isPaid: true,
-      paidAt: { $gte: start, $lte: end },
       status: { $ne: 'cancelled' }
     };
 
-    // Bugungi hisobot uchun aktiv smena bo'yicha filter
-    if (period === 'today') {
-      const activeShift = await Shift.getActiveShift(restaurantId);
-      if (activeShift) {
-        orderQuery.shiftId = activeShift._id;
+    let start, end;
+
+    if (shiftId) {
+      // ShiftId berilgan bo'lsa - faqat shu shift bo'yicha filter
+      orderQuery.shiftId = new mongoose.Types.ObjectId(shiftId);
+    } else {
+      // Eski logika - period bo'yicha
+      let dateRange;
+      if (startDate || endDate) {
+        dateRange = getTashkentDateRange(startDate, endDate, startTime, endTime);
+      } else {
+        dateRange = getDateRangeByPeriod(period);
+        if (startTime || endTime) {
+          dateRange = getTashkentDateRange(
+            dateRange.start.toISOString().split('T')[0],
+            dateRange.end.toISOString().split('T')[0],
+            startTime,
+            endTime
+          );
+        }
+      }
+      start = dateRange.start;
+      end = dateRange.end;
+      orderQuery.paidAt = { $gte: start, $lte: end };
+
+      // Bugungi hisobot uchun aktiv smena bo'yicha filter
+      if (period === 'today') {
+        const activeShift = await Shift.getActiveShift(restaurantId);
+        if (activeShift) {
+          orderQuery.shiftId = activeShift._id;
+        }
       }
     }
 
@@ -442,21 +449,11 @@ exports.getFullReport = async (req, res, next) => {
 exports.getPaymentsList = async (req, res, next) => {
   try {
     const { restaurantId } = req.user;
-    const { period = 'today', startDate, endDate, startTime, endTime, paymentType } = req.query;
-
-    let dateRange;
-    if (startDate || endDate) {
-      dateRange = getTashkentDateRange(startDate, endDate, startTime, endTime);
-    } else {
-      dateRange = getDateRangeByPeriod(period);
-    }
-
-    const { start, end } = dateRange;
+    const { period = 'today', startDate, endDate, startTime, endTime, paymentType, shiftId } = req.query;
 
     const query = {
       restaurantId: new mongoose.Types.ObjectId(restaurantId),
       isPaid: true,
-      paidAt: { $gte: start, $lte: end },
       status: { $ne: 'cancelled' }
     };
 
@@ -464,11 +461,23 @@ exports.getPaymentsList = async (req, res, next) => {
       query.paymentType = paymentType;
     }
 
-    // Bugungi hisobot uchun aktiv smena bo'yicha filter
-    if (period === 'today') {
-      const activeShift = await Shift.getActiveShift(restaurantId);
-      if (activeShift) {
-        query.shiftId = activeShift._id;
+    if (shiftId) {
+      query.shiftId = new mongoose.Types.ObjectId(shiftId);
+    } else {
+      let dateRange;
+      if (startDate || endDate) {
+        dateRange = getTashkentDateRange(startDate, endDate, startTime, endTime);
+      } else {
+        dateRange = getDateRangeByPeriod(period);
+      }
+      const { start, end } = dateRange;
+      query.paidAt = { $gte: start, $lte: end };
+
+      if (period === 'today') {
+        const activeShift = await Shift.getActiveShift(restaurantId);
+        if (activeShift) {
+          query.shiftId = activeShift._id;
+        }
       }
     }
 
