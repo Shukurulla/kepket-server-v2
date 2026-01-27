@@ -3,6 +3,7 @@ const router = express.Router();
 const orderController = require('../controllers/orderController');
 const { auth } = require('../middleware/auth');
 const { requireRole } = require('../middleware/roleCheck');
+const { deduplication } = require('../middleware/deduplication');
 
 // All routes require authentication
 router.use(auth);
@@ -27,7 +28,7 @@ router.get('/waiter-income/:waiterId', orderController.getWaiterDailyIncome);
 router.get('/my-income', requireRole('waiter'), orderController.getMyDailyIncome);
 
 // CRUD
-router.post('/', orderController.createOrder);
+router.post('/', deduplication(3000), orderController.createOrder);
 router.get('/:id', orderController.getOrder);
 router.patch('/:id', orderController.updateOrder);
 router.delete('/:id', orderController.deleteOrder);
@@ -43,7 +44,7 @@ router.post('/:id/pay-items', requireRole('cashier', 'admin'), orderController.p
 router.get('/:id/unpaid-items', orderController.getUnpaidItems);
 
 // Item actions
-router.post('/:id/items', orderController.addItems);
+router.post('/:id/items', deduplication(3000), orderController.addItems);
 router.delete('/:id/items/:itemId', orderController.deleteItem);
 router.patch('/:id/items/:itemId/quantity', orderController.updateItemQuantity);
 router.patch('/:id/items/:itemId/ready', requireRole('cook', 'admin'), orderController.markItemReady);
