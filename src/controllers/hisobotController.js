@@ -128,17 +128,33 @@ exports.getFullReport = async (req, res, next) => {
     const paidOrders = await Order.find(orderQuery).lean();
 
     // ==========================================
+    // Helper: Har bir orderning aktiv (cancelled bo'lmagan) itemlari asosida haqiqiy summani hisoblash
+    // ==========================================
+    const getOrderActiveTotal = (order) => {
+      const activeItems = (order.items || []).filter(item =>
+        !item.isDeleted && item.status !== 'cancelled' && !item.isCancelled
+      );
+      const activeFoodTotal = activeItems.reduce((sum, item) => sum + ((item.price || 0) * (item.quantity || 0)), 0);
+      // Xizmat haqi (10%) faqat aktiv itemlar summasi bo'yicha
+      const activeServiceCharge = Math.round(activeFoodTotal * 0.1);
+      const activeGrandTotal = activeFoodTotal + activeServiceCharge;
+      return { activeFoodTotal, activeServiceCharge, activeGrandTotal };
+    };
+
+    // ==========================================
     // 1. SOTUV HISOBOTI (SALES REPORT)
     // ==========================================
 
-    // Umumiy tushum
-    const totalRevenue = paidOrders.reduce((sum, order) => sum + (order.grandTotal || 0), 0);
+    let totalRevenue = 0;
+    let foodRevenue = 0;
+    let serviceRevenue = 0;
 
-    // Taomlar summasi (subtotal)
-    const foodRevenue = paidOrders.reduce((sum, order) => sum + (order.subtotal || 0), 0);
-
-    // Xizmat haqi (service charge - 10%)
-    const serviceRevenue = paidOrders.reduce((sum, order) => sum + (order.serviceCharge || 0), 0);
+    paidOrders.forEach(order => {
+      const { activeFoodTotal, activeServiceCharge, activeGrandTotal } = getOrderActiveTotal(order);
+      totalRevenue += activeGrandTotal;
+      foodRevenue += activeFoodTotal;
+      serviceRevenue += activeServiceCharge;
+    });
 
     // Cheklar soni
     const totalChecks = paidOrders.length;
@@ -159,20 +175,23 @@ exports.getFullReport = async (req, res, next) => {
     let mixedCount = 0;
 
     paidOrders.forEach(order => {
+      const { activeGrandTotal } = getOrderActiveTotal(order);
       if (order.paymentType === 'cash') {
-        cashTotal += order.grandTotal || 0;
+        cashTotal += activeGrandTotal;
         cashCount++;
       } else if (order.paymentType === 'card') {
-        cardTotal += order.grandTotal || 0;
+        cardTotal += activeGrandTotal;
         cardCount++;
       } else if (order.paymentType === 'click') {
-        clickTotal += order.grandTotal || 0;
+        clickTotal += activeGrandTotal;
         clickCount++;
       } else if (order.paymentType === 'mixed') {
-        // Mixed payment - har bir turni alohida hisoblash
-        cashTotal += order.paymentSplit?.cash || 0;
-        cardTotal += order.paymentSplit?.card || 0;
-        clickTotal += order.paymentSplit?.click || 0;
+        // Mixed payment - proportional hisoblash
+        const originalTotal = order.grandTotal || 1;
+        const ratio = activeGrandTotal / originalTotal;
+        cashTotal += Math.round((order.paymentSplit?.cash || 0) * ratio);
+        cardTotal += Math.round((order.paymentSplit?.card || 0) * ratio);
+        clickTotal += Math.round((order.paymentSplit?.click || 0) * ratio);
         mixedCount++;
       }
     });
@@ -227,17 +246,20 @@ exports.getFullReport = async (req, res, next) => {
       }
 
       const waiter = waiterMap.get(waiterId);
+      const { activeGrandTotal, activeServiceCharge } = getOrderActiveTotal(order);
       waiter.totalOrders++;
-      waiter.totalRevenue += order.grandTotal || 0;
-      waiter.serviceRevenue += order.serviceCharge || 0;
+      waiter.totalRevenue += activeGrandTotal;
+      waiter.serviceRevenue += activeServiceCharge;
 
       if (order.paymentType === 'cash') {
-        waiter.cashRevenue += order.grandTotal || 0;
+        waiter.cashRevenue += activeGrandTotal;
       } else if (order.paymentType === 'card') {
-        waiter.cardRevenue += order.grandTotal || 0;
+        waiter.cardRevenue += activeGrandTotal;
       } else if (order.paymentType === 'mixed') {
-        waiter.cashRevenue += order.paymentSplit?.cash || 0;
-        waiter.cardRevenue += order.paymentSplit?.card || 0;
+        const originalTotal = order.grandTotal || 1;
+        const ratio = activeGrandTotal / originalTotal;
+        waiter.cashRevenue += Math.round((order.paymentSplit?.cash || 0) * ratio);
+        waiter.cardRevenue += Math.round((order.paymentSplit?.card || 0) * ratio);
       }
     });
 
@@ -352,7 +374,7 @@ exports.getFullReport = async (req, res, next) => {
 
         const hourData = hourlyMap.get(tashkentHour);
         hourData.orderCount++;
-        hourData.revenue += order.grandTotal || 0;
+        hourData.revenue += getOrderActiveTotal(order).activeGrandTotal;
       }
     });
 
@@ -486,20 +508,36 @@ exports.getPaymentsList = async (req, res, next) => {
       .sort({ paidAt: -1 })
       .lean();
 
-    // Har bir payment uchun qo'shimcha ma'lumotlar
-    const formattedPayments = payments.map((order, index) => ({
-      _id: order._id,
-      orderNumber: order.orderNumber,
-      tableName: order.tableName || '-',
-      waiterName: order.waiterName || 'Noma\'lum',
-      totalPrice: order.grandTotal || 0,
-      subtotal: order.subtotal || 0,
-      serviceCharge: order.serviceCharge || 0,
-      paymentType: order.paymentType,
-      paymentSplit: order.paymentSplit,
-      paidAt: order.paidAt,
-      itemsCount: (order.items || []).filter(i => !i.isDeleted && i.status !== 'cancelled').length
-    }));
+    // Har bir payment uchun qo'shimcha ma'lumotlar (cancelled itemlarni hisobga olmaslik)
+    const formattedPayments = payments.map((order) => {
+      const activeItems = (order.items || []).filter(i => !i.isDeleted && i.status !== 'cancelled' && !i.isCancelled);
+      const activeFoodTotal = activeItems.reduce((sum, item) => sum + ((item.price || 0) * (item.quantity || 0)), 0);
+      const activeServiceCharge = Math.round(activeFoodTotal * 0.1);
+      const activeGrandTotal = activeFoodTotal + activeServiceCharge;
+
+      return {
+        _id: order._id,
+        orderNumber: order.orderNumber,
+        tableName: order.tableName || '-',
+        waiterName: order.waiterName || 'Noma\'lum',
+        totalPrice: activeGrandTotal,
+        subtotal: activeFoodTotal,
+        serviceCharge: activeServiceCharge,
+        paymentType: order.paymentType,
+        paymentSplit: order.paymentSplit,
+        paidAt: order.paidAt,
+        itemsCount: activeItems.length,
+        items: (order.items || []).map(item => ({
+          foodName: item.foodName || item.name || 'Noma\'lum',
+          quantity: item.quantity || 1,
+          price: item.price || 0,
+          total: (item.price || 0) * (item.quantity || 0),
+          status: item.status || 'active',
+          isCancelled: item.isCancelled,
+          isDeleted: item.isDeleted
+        }))
+      };
+    });
 
     res.json({
       success: true,

@@ -477,12 +477,13 @@ orderSchema.methods.updateStatusFromItems = function() {
   const allReady = activeItems.every(item => item.status === 'ready' || item.status === 'served');
   const allServed = activeItems.every(item => item.status === 'served');
   const anyPreparing = activeItems.some(item => item.status === 'preparing' || item.readyQuantity > 0);
+  const anyPending = activeItems.some(item => item.status === 'pending');
 
   if (allServed) {
     this.status = 'served';
   } else if (allReady) {
     this.status = 'ready';
-  } else if (anyPreparing) {
+  } else if (anyPreparing || anyPending) {
     this.status = 'preparing';
   }
 };
@@ -496,6 +497,11 @@ orderSchema.methods.addItem = function(itemData) {
 
   if (existingItem) {
     existingItem.quantity += itemData.quantity || 1;
+    // Agar item ready/served bo'lsa, yangi quantity qo'shilganda pending ga qaytarish
+    if (['ready', 'served'].includes(existingItem.status)) {
+      existingItem.status = 'pending';
+      existingItem.isStarted = false;
+    }
   } else {
     this.items.push({
       ...itemData,

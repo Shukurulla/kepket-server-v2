@@ -1,0 +1,1736 @@
+{
+  "shiftId": "69782056920b465e4388509c",
+  "totalOverlapOrders": 63,
+  "totalOverlapSum": 4439600,
+  "exportedAt": "2026-01-27T19:58:29.265Z",
+  "orders": [
+    {
+      "_id": "6978530ed8b93fc077f24a3e",
+      "orderNumber": 6,
+      "table": "Noma'lum",
+      "tableId": "697645fea3e807a10e55dc44",
+      "createdAt": "2026-01-27T05:54:22.573Z",
+      "paidAt": "2026-01-27T11:55:56.518Z",
+      "grandTotal": 57200,
+      "storedGrandTotal": 57200,
+      "items": [
+        {
+          "foodName": "Палав Акс",
+          "quantity": 2,
+          "price": 20000,
+          "total": 40000
+        },
+        {
+          "foodName": "АКС ПЕПСИ 0.26 Л",
+          "quantity": 2,
+          "price": 0,
+          "total": 0
+        },
+        {
+          "foodName": "ГЎШ СОМСА",
+          "quantity": 1,
+          "price": 12000,
+          "total": 12000
+        }
+      ]
+    },
+    {
+      "_id": "697860afbcda1da0037e4274",
+      "orderNumber": 18,
+      "table": "Noma'lum",
+      "tableId": "697645fda3e807a10e55dc37",
+      "createdAt": "2026-01-27T06:52:31.843Z",
+      "paidAt": "2026-01-27T10:43:28.888Z",
+      "grandTotal": 26400,
+      "storedGrandTotal": 26400,
+      "items": [
+        {
+          "foodName": "Палав Акс",
+          "quantity": 1,
+          "price": 20000,
+          "total": 20000
+        },
+        {
+          "foodName": "АКС ПЕПСИ 0.26 Л",
+          "quantity": 1,
+          "price": 0,
+          "total": 0
+        },
+        {
+          "foodName": "ЧАЙ ЗЕЛЕНЫЙ",
+          "quantity": 1,
+          "price": 4000,
+          "total": 4000
+        }
+      ]
+    },
+    {
+      "_id": "697861a9bcda1da0037ee3d6",
+      "orderNumber": 21,
+      "table": "Noma'lum",
+      "tableId": "6976461da3e807a10e55dcda",
+      "createdAt": "2026-01-27T06:56:41.175Z",
+      "paidAt": "2026-01-27T07:54:08.000Z",
+      "grandTotal": 40700,
+      "storedGrandTotal": 40700,
+      "items": [
+        {
+          "foodName": "Палав Акс",
+          "quantity": 1,
+          "price": 20000,
+          "total": 20000
+        },
+        {
+          "foodName": "Қази",
+          "quantity": 1,
+          "price": 5000,
+          "total": 5000
+        },
+        {
+          "foodName": "АКС ПЕПСИ 0.26 Л",
+          "quantity": 1,
+          "price": 0,
+          "total": 0
+        },
+        {
+          "foodName": "ГЎШ СОМСА",
+          "quantity": 1,
+          "price": 12000,
+          "total": 12000
+        }
+      ]
+    },
+    {
+      "_id": "697861e3bcda1da0037f10ce",
+      "orderNumber": 23,
+      "table": "Noma'lum",
+      "tableId": "69764629a3e807a10e55dd2a",
+      "createdAt": "2026-01-27T06:57:39.617Z",
+      "paidAt": "2026-01-27T11:56:12.602Z",
+      "grandTotal": 79200,
+      "storedGrandTotal": 79200,
+      "items": [
+        {
+          "foodName": "Палав Акс",
+          "quantity": 1,
+          "price": 20000,
+          "total": 20000
+        },
+        {
+          "foodName": "ЧАЙ ЗЕЛЕНЫЙ",
+          "quantity": 1,
+          "price": 4000,
+          "total": 4000
+        },
+        {
+          "foodName": "НАН",
+          "quantity": 2,
+          "price": 4000,
+          "total": 8000
+        },
+        {
+          "foodName": "СУП ТЕФТЕЛ",
+          "quantity": 1,
+          "price": 30000,
+          "total": 30000
+        },
+        {
+          "foodName": "ФРИ",
+          "quantity": 1,
+          "price": 10000,
+          "total": 10000
+        },
+        {
+          "foodName": "АКС ПЕПСИ 0.26 Л",
+          "quantity": 1,
+          "price": 0,
+          "total": 0
+        }
+      ]
+    },
+    {
+      "_id": "697862b2bcda1da0037f903d",
+      "orderNumber": 28,
+      "table": "Noma'lum",
+      "tableId": "6976461ea3e807a10e55dcde",
+      "createdAt": "2026-01-27T07:01:06.872Z",
+      "paidAt": "2026-01-27T08:10:01.705Z",
+      "grandTotal": 0,
+      "storedGrandTotal": 0,
+      "items": [
+        {
+          "foodName": "АКС ПЕПСИ 0.26 Л",
+          "quantity": 1,
+          "price": 0,
+          "total": 0
+        }
+      ]
+    },
+    {
+      "_id": "697862cabcda1da0037fa61b",
+      "orderNumber": 29,
+      "table": "Noma'lum",
+      "tableId": "6976461ea3e807a10e55dce2",
+      "createdAt": "2026-01-27T07:01:30.977Z",
+      "paidAt": "2026-01-27T11:56:17.076Z",
+      "grandTotal": 66000,
+      "storedGrandTotal": 66000,
+      "items": [
+        {
+          "foodName": "Палав Акс",
+          "quantity": 3,
+          "price": 20000,
+          "total": 60000
+        },
+        {
+          "foodName": "АКС ПЕПСИ 0.26 Л",
+          "quantity": 3,
+          "price": 0,
+          "total": 0
+        }
+      ]
+    },
+    {
+      "_id": "6978656fa1a9a7bd1ad47463",
+      "orderNumber": 43,
+      "table": "Noma'lum",
+      "tableId": "69764622a3e807a10e55dcfe",
+      "createdAt": "2026-01-27T07:12:47.242Z",
+      "paidAt": "2026-01-27T08:11:16.421Z",
+      "grandTotal": 33000,
+      "storedGrandTotal": 33000,
+      "items": [
+        {
+          "foodName": "Палав Акс",
+          "quantity": 1,
+          "price": 20000,
+          "total": 20000
+        },
+        {
+          "foodName": "ЗЕЛЕНЫЙ ЧАЙ С ЛИМОНОМ",
+          "quantity": 1,
+          "price": 10000,
+          "total": 10000
+        }
+      ]
+    },
+    {
+      "_id": "69786583a1a9a7bd1ad4ad49",
+      "orderNumber": 44,
+      "table": "Noma'lum",
+      "tableId": "69764622a3e807a10e55dcfe",
+      "createdAt": "2026-01-27T07:13:07.265Z",
+      "paidAt": "2026-01-27T11:56:25.524Z",
+      "grandTotal": 30800,
+      "storedGrandTotal": 30800,
+      "items": [
+        {
+          "foodName": "Палав Акс",
+          "quantity": 1,
+          "price": 20000,
+          "total": 20000
+        },
+        {
+          "foodName": "СОЛА 0.5 Л",
+          "quantity": 1,
+          "price": 8000,
+          "total": 8000
+        }
+      ]
+    },
+    {
+      "_id": "697865c8a1a9a7bd1ad54e7a",
+      "orderNumber": 46,
+      "table": "Noma'lum",
+      "tableId": "69764632a3e807a10e55dd72",
+      "createdAt": "2026-01-27T07:14:16.936Z",
+      "paidAt": "2026-01-27T11:56:30.986Z",
+      "grandTotal": 70400,
+      "storedGrandTotal": 70400,
+      "items": [
+        {
+          "foodName": "ЧАЙ ЗЕЛЕНЫЙ",
+          "quantity": 1,
+          "price": 4000,
+          "total": 4000
+        },
+        {
+          "foodName": "Палав Акс",
+          "quantity": 3,
+          "price": 20000,
+          "total": 60000
+        },
+        {
+          "foodName": "АКС ПЕПСИ 0.26 Л",
+          "quantity": 3,
+          "price": 0,
+          "total": 0
+        }
+      ]
+    },
+    {
+      "_id": "69786648a1a9a7bd1ad5a1c1",
+      "orderNumber": 50,
+      "table": "Noma'lum",
+      "tableId": "69764623a3e807a10e55dd0a",
+      "createdAt": "2026-01-27T07:16:24.471Z",
+      "paidAt": "2026-01-27T11:56:35.637Z",
+      "grandTotal": 88000,
+      "storedGrandTotal": 88000,
+      "items": [
+        {
+          "foodName": "Палав Акс",
+          "quantity": 3,
+          "price": 20000,
+          "total": 60000
+        },
+        {
+          "foodName": "ЧЕРНЫЙ ЧАЙ С ЛИМОНОМ",
+          "quantity": 2,
+          "price": 10000,
+          "total": 20000
+        },
+        {
+          "foodName": "АКС ПЕПСИ 0.26 Л",
+          "quantity": 3,
+          "price": 0,
+          "total": 0
+        }
+      ]
+    },
+    {
+      "_id": "6978666da1a9a7bd1ad5cd3e",
+      "orderNumber": 52,
+      "table": "Noma'lum",
+      "tableId": "6977177607c98fa4652c7dca",
+      "createdAt": "2026-01-27T07:17:01.807Z",
+      "paidAt": "2026-01-27T08:21:55.289Z",
+      "grandTotal": 88000,
+      "storedGrandTotal": 88000,
+      "items": [
+        {
+          "foodName": "Палав Акс",
+          "quantity": 4,
+          "price": 20000,
+          "total": 80000
+        },
+        {
+          "foodName": "АКС ПЕПСИ 0.26 Л",
+          "quantity": 4,
+          "price": 0,
+          "total": 0
+        }
+      ]
+    },
+    {
+      "_id": "6978676bed17c97da38b5aa8",
+      "orderNumber": 56,
+      "table": "Noma'lum",
+      "tableId": "6976461da3e807a10e55dcda",
+      "createdAt": "2026-01-27T07:21:15.061Z",
+      "paidAt": "2026-01-27T08:02:00.059Z",
+      "grandTotal": 105600,
+      "storedGrandTotal": 105600,
+      "items": [
+        {
+          "foodName": "Палав Акс",
+          "quantity": 3,
+          "price": 20000,
+          "total": 60000
+        },
+        {
+          "foodName": "ГЎШ СОМСА",
+          "quantity": 3,
+          "price": 12000,
+          "total": 36000
+        }
+      ]
+    },
+    {
+      "_id": "6978681ced17c97da38c5773",
+      "orderNumber": 57,
+      "table": "Noma'lum",
+      "tableId": "6976461ea3e807a10e55dcde",
+      "createdAt": "2026-01-27T07:24:12.167Z",
+      "paidAt": "2026-01-27T08:09:52.702Z",
+      "grandTotal": 26400,
+      "storedGrandTotal": 26400,
+      "items": [
+        {
+          "foodName": "ЧАЙ ЗЕЛЕНЫЙ",
+          "quantity": 1,
+          "price": 4000,
+          "total": 4000
+        },
+        {
+          "foodName": "Палав Акс",
+          "quantity": 1,
+          "price": 20000,
+          "total": 20000
+        }
+      ]
+    },
+    {
+      "_id": "697868aeed17c97da38d33b6",
+      "orderNumber": 61,
+      "table": "Noma'lum",
+      "tableId": "6976461ea3e807a10e55dce2",
+      "createdAt": "2026-01-27T07:26:38.368Z",
+      "paidAt": "2026-01-27T11:49:48.511Z",
+      "grandTotal": 74800,
+      "storedGrandTotal": 74800,
+      "items": [
+        {
+          "foodName": "Палав Акс",
+          "quantity": 2,
+          "price": 20000,
+          "total": 40000
+        },
+        {
+          "foodName": "АКС ПЕПСИ 0.26 Л",
+          "quantity": 2,
+          "price": 0,
+          "total": 0
+        },
+        {
+          "foodName": "ЧАЙ ЗЕЛЕНЫЙ",
+          "quantity": 1,
+          "price": 4000,
+          "total": 4000
+        },
+        {
+          "foodName": "ГЎШ СОМСА",
+          "quantity": 2,
+          "price": 12000,
+          "total": 24000
+        }
+      ]
+    },
+    {
+      "_id": "697869aded17c97da38e8cb9",
+      "orderNumber": 66,
+      "table": "Noma'lum",
+      "tableId": "69770e0e535b27cf285513f3",
+      "createdAt": "2026-01-27T07:30:53.384Z",
+      "paidAt": "2026-01-27T11:56:59.885Z",
+      "grandTotal": 250800,
+      "storedGrandTotal": 250800,
+      "items": [
+        {
+          "foodName": "Палав Акс",
+          "quantity": 10,
+          "price": 20000,
+          "total": 200000
+        },
+        {
+          "foodName": "АКС ПЕПСИ 0.26 Л",
+          "quantity": 10,
+          "price": 0,
+          "total": 0
+        },
+        {
+          "foodName": "ЧАЙ ЗЕЛЕНЫЙ",
+          "quantity": 2,
+          "price": 4000,
+          "total": 8000
+        },
+        {
+          "foodName": "Палав Акс",
+          "quantity": 1,
+          "price": 20000,
+          "total": 20000
+        },
+        {
+          "foodName": "АКС ПЕПСИ 0.26 Л",
+          "quantity": 1,
+          "price": 0,
+          "total": 0
+        }
+      ]
+    },
+    {
+      "_id": "69786cd3ed17c97da3928173",
+      "orderNumber": 73,
+      "table": "Noma'lum",
+      "tableId": "69764630a3e807a10e55dd6a",
+      "createdAt": "2026-01-27T07:44:19.735Z",
+      "paidAt": "2026-01-27T11:57:03.950Z",
+      "grandTotal": 44000,
+      "storedGrandTotal": 44000,
+      "items": [
+        {
+          "foodName": "Палав Акс",
+          "quantity": 2,
+          "price": 20000,
+          "total": 40000
+        }
+      ]
+    },
+    {
+      "_id": "69786d06ed17c97da392d869",
+      "orderNumber": 75,
+      "table": "Noma'lum",
+      "tableId": "69764630a3e807a10e55dd6a",
+      "createdAt": "2026-01-27T07:45:10.580Z",
+      "paidAt": "2026-01-27T11:57:20.483Z",
+      "grandTotal": 44000,
+      "storedGrandTotal": 44000,
+      "items": [
+        {
+          "foodName": "Палав Акс",
+          "quantity": 2,
+          "price": 20000,
+          "total": 40000
+        },
+        {
+          "foodName": "АКС ПЕПСИ 0.26 Л",
+          "quantity": 2,
+          "price": 0,
+          "total": 0
+        }
+      ]
+    },
+    {
+      "_id": "69786d52ed17c97da393078e",
+      "orderNumber": 78,
+      "table": "Noma'lum",
+      "tableId": "69764632a3e807a10e55dd72",
+      "createdAt": "2026-01-27T07:46:26.951Z",
+      "paidAt": "2026-01-27T11:57:25.033Z",
+      "grandTotal": 22000,
+      "storedGrandTotal": 22000,
+      "items": [
+        {
+          "foodName": "Палав Акс",
+          "quantity": 1,
+          "price": 20000,
+          "total": 20000
+        }
+      ]
+    },
+    {
+      "_id": "69786e84ed17c97da3950241",
+      "orderNumber": 80,
+      "table": "Noma'lum",
+      "tableId": "697645fda3e807a10e55dc37",
+      "createdAt": "2026-01-27T07:51:32.987Z",
+      "paidAt": "2026-01-27T10:43:33.031Z",
+      "grandTotal": 44000,
+      "storedGrandTotal": 44000,
+      "items": [
+        {
+          "foodName": "Палав Акс",
+          "quantity": 2,
+          "price": 20000,
+          "total": 40000
+        }
+      ]
+    },
+    {
+      "_id": "69786ed6a2dddb47c0ef51a7",
+      "orderNumber": 82,
+      "table": "Noma'lum",
+      "tableId": "69764620a3e807a10e55dcee",
+      "createdAt": "2026-01-27T07:52:54.497Z",
+      "paidAt": "2026-01-27T08:13:03.851Z",
+      "grandTotal": 44000,
+      "storedGrandTotal": 44000,
+      "items": [
+        {
+          "foodName": "Палав Акс",
+          "quantity": 2,
+          "price": 20000,
+          "total": 40000
+        }
+      ]
+    },
+    {
+      "_id": "69786ee6a2dddb47c0ef7663",
+      "orderNumber": 83,
+      "table": "Noma'lum",
+      "tableId": "6976461ea3e807a10e55dce2",
+      "createdAt": "2026-01-27T07:53:10.907Z",
+      "paidAt": "2026-01-27T11:57:30.027Z",
+      "grandTotal": 22000,
+      "storedGrandTotal": 22000,
+      "items": [
+        {
+          "foodName": "Палав Акс",
+          "quantity": 1,
+          "price": 20000,
+          "total": 20000
+        }
+      ]
+    },
+    {
+      "_id": "69786efaa2dddb47c0ef8119",
+      "orderNumber": 84,
+      "table": "Noma'lum",
+      "tableId": "6976461da3e807a10e55dcda",
+      "createdAt": "2026-01-27T07:53:30.874Z",
+      "paidAt": "2026-01-27T11:57:34.213Z",
+      "grandTotal": 22000,
+      "storedGrandTotal": 22000,
+      "items": [
+        {
+          "foodName": "Палав Акс",
+          "quantity": 1,
+          "price": 20000,
+          "total": 20000
+        }
+      ]
+    },
+    {
+      "_id": "69786f45c942c2bd5d7ce946",
+      "orderNumber": 85,
+      "table": "Noma'lum",
+      "tableId": "69764621a3e807a10e55dcf6",
+      "createdAt": "2026-01-27T07:54:45.496Z",
+      "paidAt": "2026-01-27T08:15:30.350Z",
+      "grandTotal": 66000,
+      "storedGrandTotal": 66000,
+      "items": [
+        {
+          "foodName": "Палав Акс",
+          "quantity": 3,
+          "price": 20000,
+          "total": 60000
+        }
+      ]
+    },
+    {
+      "_id": "69787008c942c2bd5d7df9b2",
+      "orderNumber": 87,
+      "table": "Noma'lum",
+      "tableId": "69764620a3e807a10e55dcf2",
+      "createdAt": "2026-01-27T07:58:00.161Z",
+      "paidAt": "2026-01-27T08:16:02.566Z",
+      "grandTotal": 66000,
+      "storedGrandTotal": 66000,
+      "items": [
+        {
+          "foodName": "Палав Акс",
+          "quantity": 3,
+          "price": 20000,
+          "total": 60000
+        }
+      ]
+    },
+    {
+      "_id": "69787079c942c2bd5d7e4a9f",
+      "orderNumber": 88,
+      "table": "Noma'lum",
+      "tableId": "69764620a3e807a10e55dcee",
+      "createdAt": "2026-01-27T07:59:53.516Z",
+      "paidAt": "2026-01-27T11:58:12.442Z",
+      "grandTotal": 66000,
+      "storedGrandTotal": 66000,
+      "items": [
+        {
+          "foodName": "Палав Акс",
+          "quantity": 3,
+          "price": 20000,
+          "total": 60000
+        }
+      ]
+    },
+    {
+      "_id": "69787107c942c2bd5d7f4405",
+      "orderNumber": 89,
+      "table": "Noma'lum",
+      "tableId": "69764602a3e807a10e55dc7d",
+      "createdAt": "2026-01-27T08:02:15.855Z",
+      "paidAt": "2026-01-27T11:58:18.482Z",
+      "grandTotal": 58300,
+      "storedGrandTotal": 58300,
+      "items": [
+        {
+          "foodName": "Палав Акс",
+          "quantity": 2,
+          "price": 20000,
+          "total": 40000
+        },
+        {
+          "foodName": "СОЛА 1 Л",
+          "quantity": 1,
+          "price": 13000,
+          "total": 13000
+        }
+      ]
+    },
+    {
+      "_id": "6978716bc942c2bd5d7f80ca",
+      "orderNumber": 92,
+      "table": "Noma'lum",
+      "tableId": "6976461fa3e807a10e55dcea",
+      "createdAt": "2026-01-27T08:03:55.920Z",
+      "paidAt": "2026-01-27T08:40:22.313Z",
+      "grandTotal": 48400,
+      "storedGrandTotal": 48400,
+      "items": [
+        {
+          "foodName": "Палав Акс",
+          "quantity": 2,
+          "price": 20000,
+          "total": 40000
+        },
+        {
+          "foodName": "ЧАЙ ЗЕЛЕНЫЙ",
+          "quantity": 1,
+          "price": 4000,
+          "total": 4000
+        }
+      ]
+    },
+    {
+      "_id": "69787186c942c2bd5d7f98ba",
+      "orderNumber": 93,
+      "table": "Noma'lum",
+      "tableId": "6976461da3e807a10e55dcda",
+      "createdAt": "2026-01-27T08:04:22.509Z",
+      "paidAt": "2026-01-27T08:32:40.907Z",
+      "grandTotal": 132000,
+      "storedGrandTotal": 132000,
+      "items": [
+        {
+          "foodName": "Палав Акс",
+          "quantity": 6,
+          "price": 20000,
+          "total": 120000
+        }
+      ]
+    },
+    {
+      "_id": "697871d0c942c2bd5d7fd8c5",
+      "orderNumber": 95,
+      "table": "Noma'lum",
+      "tableId": "69764604a3e807a10e55dc98",
+      "createdAt": "2026-01-27T08:05:36.018Z",
+      "paidAt": "2026-01-27T09:19:14.214Z",
+      "grandTotal": 123200,
+      "storedGrandTotal": 123200,
+      "items": [
+        {
+          "foodName": "Палав Акс",
+          "quantity": 3,
+          "price": 20000,
+          "total": 60000
+        },
+        {
+          "foodName": "АКС ПЕПСИ 0.26 Л",
+          "quantity": 3,
+          "price": 0,
+          "total": 0
+        },
+        {
+          "foodName": "ГЎШ СОМСА",
+          "quantity": 4,
+          "price": 12000,
+          "total": 48000
+        },
+        {
+          "foodName": "ЧАЙ ЗЕЛЕНЫЙ",
+          "quantity": 1,
+          "price": 4000,
+          "total": 4000
+        }
+      ]
+    },
+    {
+      "_id": "697871fbc942c2bd5d800e63",
+      "orderNumber": 96,
+      "table": "Noma'lum",
+      "tableId": "697645fea3e807a10e55dc40",
+      "createdAt": "2026-01-27T08:06:19.992Z",
+      "paidAt": "2026-01-27T08:13:12.279Z",
+      "grandTotal": 101200,
+      "storedGrandTotal": 101200,
+      "items": [
+        {
+          "foodName": "Палав Акс",
+          "quantity": 4,
+          "price": 20000,
+          "total": 80000
+        },
+        {
+          "foodName": "НАН",
+          "quantity": 2,
+          "price": 4000,
+          "total": 8000
+        },
+        {
+          "foodName": "ЧАЙ ЗЕЛЕНЫЙ",
+          "quantity": 1,
+          "price": 4000,
+          "total": 4000
+        }
+      ]
+    },
+    {
+      "_id": "697872b3c942c2bd5d81e82a",
+      "orderNumber": 102,
+      "table": "Noma'lum",
+      "tableId": "697645fea3e807a10e55dc44",
+      "createdAt": "2026-01-27T08:09:23.588Z",
+      "paidAt": "2026-01-27T11:58:46.199Z",
+      "grandTotal": 44000,
+      "storedGrandTotal": 44000,
+      "items": [
+        {
+          "foodName": "Палав Акс",
+          "quantity": 2,
+          "price": 20000,
+          "total": 40000
+        }
+      ]
+    },
+    {
+      "_id": "69787337c942c2bd5d82a19f",
+      "orderNumber": 103,
+      "table": "Noma'lum",
+      "tableId": "6976461fa3e807a10e55dcea",
+      "createdAt": "2026-01-27T08:11:35.280Z",
+      "paidAt": "2026-01-27T11:55:01.824Z",
+      "grandTotal": 48400,
+      "storedGrandTotal": 48400,
+      "items": [
+        {
+          "foodName": "Палав Акс",
+          "quantity": 2,
+          "price": 20000,
+          "total": 40000
+        },
+        {
+          "foodName": "ЧАЙ ЗЕЛЕНЫЙ",
+          "quantity": 1,
+          "price": 4000,
+          "total": 4000
+        }
+      ]
+    },
+    {
+      "_id": "6978735ec942c2bd5d82d06d",
+      "orderNumber": 104,
+      "table": "Noma'lum",
+      "tableId": "69764621a3e807a10e55dcf6",
+      "createdAt": "2026-01-27T08:12:14.990Z",
+      "paidAt": "2026-01-27T11:58:51.117Z",
+      "grandTotal": 26400,
+      "storedGrandTotal": 26400,
+      "items": [
+        {
+          "foodName": "Палав Акс",
+          "quantity": 1,
+          "price": 20000,
+          "total": 20000
+        },
+        {
+          "foodName": "АКС ПЕПСИ 0.26 Л",
+          "quantity": 1,
+          "price": 0,
+          "total": 0
+        },
+        {
+          "foodName": "ЧАЙ ЗЕЛЕНЫЙ",
+          "quantity": 1,
+          "price": 4000,
+          "total": 4000
+        }
+      ]
+    },
+    {
+      "_id": "697873e4c942c2bd5d837a12",
+      "orderNumber": 105,
+      "table": "Noma'lum",
+      "tableId": "6976461fa3e807a10e55dcea",
+      "createdAt": "2026-01-27T08:14:28.917Z",
+      "paidAt": "2026-01-27T08:17:03.573Z",
+      "grandTotal": 22000,
+      "storedGrandTotal": 22000,
+      "items": [
+        {
+          "foodName": "Палав Акс",
+          "quantity": 1,
+          "price": 20000,
+          "total": 20000
+        }
+      ]
+    },
+    {
+      "_id": "69787538c942c2bd5d8655f7",
+      "orderNumber": 108,
+      "table": "Noma'lum",
+      "tableId": "697645ffa3e807a10e55dc56",
+      "createdAt": "2026-01-27T08:20:08.470Z",
+      "paidAt": "2026-01-27T11:59:09.051Z",
+      "grandTotal": 99000,
+      "storedGrandTotal": 99000,
+      "items": [
+        {
+          "foodName": "Палав Акс",
+          "quantity": 4,
+          "price": 20000,
+          "total": 80000
+        },
+        {
+          "foodName": "АКС ПЕПСИ 0.26 Л",
+          "quantity": 4,
+          "price": 0,
+          "total": 0
+        },
+        {
+          "foodName": "ЗЕЛЕНЫЙ ЧАЙ С ЛИМОНОМ",
+          "quantity": 1,
+          "price": 10000,
+          "total": 10000
+        }
+      ]
+    },
+    {
+      "_id": "69787566c942c2bd5d869790",
+      "orderNumber": 109,
+      "table": "Noma'lum",
+      "tableId": "6977177607c98fa4652c7dca",
+      "createdAt": "2026-01-27T08:20:54.978Z",
+      "paidAt": "2026-01-27T08:21:26.518Z",
+      "grandTotal": 88000,
+      "storedGrandTotal": 88000,
+      "items": [
+        {
+          "foodName": "Палав Акс",
+          "quantity": 4,
+          "price": 20000,
+          "total": 80000
+        },
+        {
+          "foodName": "АКС ПЕПСИ 0.26 Л",
+          "quantity": 4,
+          "price": 0,
+          "total": 0
+        }
+      ]
+    },
+    {
+      "_id": "69787613c942c2bd5d873a7e",
+      "orderNumber": 110,
+      "table": "Noma'lum",
+      "tableId": "69764604a3e807a10e55dc98",
+      "createdAt": "2026-01-27T08:23:47.339Z",
+      "paidAt": "2026-01-27T09:38:19.745Z",
+      "grandTotal": 222200,
+      "storedGrandTotal": 222200,
+      "items": [
+        {
+          "foodName": "АКС ПЕПСИ 0.26 Л",
+          "quantity": 4,
+          "price": 0,
+          "total": 0
+        },
+        {
+          "foodName": "Палав Акс",
+          "quantity": 3,
+          "price": 20000,
+          "total": 60000
+        },
+        {
+          "foodName": "ЧАЙ ЗЕЛЕНЫЙ",
+          "quantity": 2,
+          "price": 4000,
+          "total": 8000
+        },
+        {
+          "foodName": "ЗЕЛЕНЫЙ ЧАЙ С ЛИМОНОМ",
+          "quantity": 1,
+          "price": 10000,
+          "total": 10000
+        },
+        {
+          "foodName": "ГЎШ СОМСА",
+          "quantity": 7,
+          "price": 12000,
+          "total": 84000
+        },
+        {
+          "foodName": "МАНТЫ ПОРТС",
+          "quantity": 1,
+          "price": 40000,
+          "total": 40000
+        }
+      ]
+    },
+    {
+      "_id": "6978766ac942c2bd5d878206",
+      "orderNumber": 111,
+      "table": "Noma'lum",
+      "tableId": "69764620a3e807a10e55dcee",
+      "createdAt": "2026-01-27T08:25:14.292Z",
+      "paidAt": "2026-01-27T11:59:12.881Z",
+      "grandTotal": 44000,
+      "storedGrandTotal": 44000,
+      "items": [
+        {
+          "foodName": "Палав Акс",
+          "quantity": 2,
+          "price": 20000,
+          "total": 40000
+        }
+      ]
+    },
+    {
+      "_id": "69787899c942c2bd5d8a4342",
+      "orderNumber": 116,
+      "table": "Noma'lum",
+      "tableId": "6976461ea3e807a10e55dce2",
+      "createdAt": "2026-01-27T08:34:33.607Z",
+      "paidAt": "2026-01-27T08:35:00.075Z",
+      "grandTotal": 44000,
+      "storedGrandTotal": 44000,
+      "items": [
+        {
+          "foodName": "Палав Акс",
+          "quantity": 2,
+          "price": 20000,
+          "total": 40000
+        }
+      ]
+    },
+    {
+      "_id": "69787955c942c2bd5d8b43f7",
+      "orderNumber": 118,
+      "table": "Noma'lum",
+      "tableId": "697645fda3e807a10e55dc37",
+      "createdAt": "2026-01-27T08:37:41.143Z",
+      "paidAt": "2026-01-27T08:57:27.417Z",
+      "grandTotal": 18700,
+      "storedGrandTotal": 18700,
+      "items": [
+        {
+          "foodName": "ГЎШ СОМСА",
+          "quantity": 1,
+          "price": 12000,
+          "total": 12000
+        },
+        {
+          "foodName": "КОФЕ С МОЛОКОМ НЕСКАФЕ",
+          "quantity": 1,
+          "price": 5000,
+          "total": 5000
+        }
+      ]
+    },
+    {
+      "_id": "697879fac942c2bd5d8c3b7e",
+      "orderNumber": 123,
+      "table": "Noma'lum",
+      "tableId": "6976461da3e807a10e55dcd6",
+      "createdAt": "2026-01-27T08:40:26.073Z",
+      "paidAt": "2026-01-27T09:03:55.749Z",
+      "grandTotal": 132000,
+      "storedGrandTotal": 132000,
+      "items": [
+        {
+          "foodName": "ГЎШ СОМСА",
+          "quantity": 10,
+          "price": 12000,
+          "total": 120000
+        },
+        {
+          "foodName": "АКС ПЕПСИ 1 Л",
+          "quantity": 1,
+          "price": 0,
+          "total": 0
+        }
+      ]
+    },
+    {
+      "_id": "69787a1fc942c2bd5d8c95ea",
+      "orderNumber": 124,
+      "table": "Noma'lum",
+      "tableId": "69764620a3e807a10e55dcf2",
+      "createdAt": "2026-01-27T08:41:03.762Z",
+      "paidAt": "2026-01-27T08:58:13.842Z",
+      "grandTotal": 44000,
+      "storedGrandTotal": 44000,
+      "items": [
+        {
+          "foodName": "ГЎШ СОМСА",
+          "quantity": 3,
+          "price": 12000,
+          "total": 36000
+        },
+        {
+          "foodName": "НАН",
+          "quantity": 1,
+          "price": 4000,
+          "total": 4000
+        }
+      ]
+    },
+    {
+      "_id": "69787b98c942c2bd5d8f15b1",
+      "orderNumber": 128,
+      "table": "Noma'lum",
+      "tableId": "6976461da3e807a10e55dcda",
+      "createdAt": "2026-01-27T08:47:20.071Z",
+      "paidAt": "2026-01-27T09:07:12.109Z",
+      "grandTotal": 39600,
+      "storedGrandTotal": 39600,
+      "items": [
+        {
+          "foodName": "ГЎШ СОМСА",
+          "quantity": 3,
+          "price": 12000,
+          "total": 36000
+        }
+      ]
+    },
+    {
+      "_id": "69787bcbc942c2bd5d8fc92f",
+      "orderNumber": 130,
+      "table": "Noma'lum",
+      "tableId": "69764625a3e807a10e55dd1a",
+      "createdAt": "2026-01-27T08:48:11.037Z",
+      "paidAt": "2026-01-27T09:27:05.583Z",
+      "grandTotal": 77000,
+      "storedGrandTotal": 77000,
+      "items": [
+        {
+          "foodName": "ГЎШ СОМСА",
+          "quantity": 5,
+          "price": 12000,
+          "total": 60000
+        },
+        {
+          "foodName": "ЧЕРНЫЙ ЧАЙ С ЛИМОНОМ",
+          "quantity": 1,
+          "price": 10000,
+          "total": 10000
+        }
+      ]
+    },
+    {
+      "_id": "69787c1ac942c2bd5d901e4b",
+      "orderNumber": 131,
+      "table": "Noma'lum",
+      "tableId": "697645ffa3e807a10e55dc4a",
+      "createdAt": "2026-01-27T08:49:30.782Z",
+      "paidAt": "2026-01-27T09:45:31.479Z",
+      "grandTotal": 168300,
+      "storedGrandTotal": 168300,
+      "items": [
+        {
+          "foodName": "СУП ГОВЯЖИЙ",
+          "quantity": 1,
+          "price": 30000,
+          "total": 30000
+        },
+        {
+          "foodName": "ГИЖДИВАН ШАШЛИК",
+          "quantity": 1,
+          "price": 18000,
+          "total": 18000
+        },
+        {
+          "foodName": "ГЎШ СОМСА",
+          "quantity": 3,
+          "price": 12000,
+          "total": 36000
+        },
+        {
+          "foodName": "НАН",
+          "quantity": 1,
+          "price": 4000,
+          "total": 4000
+        },
+        {
+          "foodName": "ЧАЙ ЗЕЛЕНЫЙ",
+          "quantity": 1,
+          "price": 4000,
+          "total": 4000
+        },
+        {
+          "foodName": "АКС ПЕПСИ 0.26 Л",
+          "quantity": 1,
+          "price": 0,
+          "total": 0
+        },
+        {
+          "foodName": "ГЎШ СОМСА",
+          "quantity": 4,
+          "price": 12000,
+          "total": 48000
+        },
+        {
+          "foodName": "СОЛА 1 Л",
+          "quantity": 1,
+          "price": 13000,
+          "total": 13000
+        }
+      ]
+    },
+    {
+      "_id": "69787cd8c942c2bd5d94291b",
+      "orderNumber": 132,
+      "table": "Noma'lum",
+      "tableId": "697645fea3e807a10e55dc44",
+      "createdAt": "2026-01-27T08:52:40.198Z",
+      "paidAt": "2026-01-27T11:59:29.161Z",
+      "grandTotal": 67100,
+      "storedGrandTotal": 67100,
+      "items": [
+        {
+          "foodName": "ГЎШ СОМСА",
+          "quantity": 4,
+          "price": 12000,
+          "total": 48000
+        },
+        {
+          "foodName": "СОЛА 1 Л",
+          "quantity": 1,
+          "price": 13000,
+          "total": 13000
+        }
+      ]
+    },
+    {
+      "_id": "69787ddac942c2bd5d955c6e",
+      "orderNumber": 135,
+      "table": "Noma'lum",
+      "tableId": "697645ffa3e807a10e55dc56",
+      "createdAt": "2026-01-27T08:56:58.852Z",
+      "paidAt": "2026-01-27T09:40:26.947Z",
+      "grandTotal": 62700,
+      "storedGrandTotal": 62700,
+      "items": [
+        {
+          "foodName": "КФС ФИЛЕ 0.5 КГ",
+          "quantity": 1,
+          "price": 45000,
+          "total": 45000
+        },
+        {
+          "foodName": "НАН",
+          "quantity": 2,
+          "price": 4000,
+          "total": 8000
+        },
+        {
+          "foodName": "ЧАЙ ЗЕЛЕНЫЙ",
+          "quantity": 1,
+          "price": 4000,
+          "total": 4000
+        }
+      ]
+    },
+    {
+      "_id": "69787eddc942c2bd5d9730f7",
+      "orderNumber": 136,
+      "table": "Noma'lum",
+      "tableId": "69764620a3e807a10e55dcee",
+      "createdAt": "2026-01-27T09:01:17.043Z",
+      "paidAt": "2026-01-27T09:29:07.079Z",
+      "grandTotal": 14300,
+      "storedGrandTotal": 14300,
+      "items": [
+        {
+          "foodName": "СОЛА 1 Л",
+          "quantity": 1,
+          "price": 13000,
+          "total": 13000
+        }
+      ]
+    },
+    {
+      "_id": "69787f55c942c2bd5d98d049",
+      "orderNumber": 138,
+      "table": "Noma'lum",
+      "tableId": "69764601a3e807a10e55dc79",
+      "createdAt": "2026-01-27T09:03:17.634Z",
+      "paidAt": "2026-01-27T10:36:08.034Z",
+      "grandTotal": 161700,
+      "storedGrandTotal": 161700,
+      "items": [
+        {
+          "foodName": "ФРУКТОВИЙ МИКС",
+          "quantity": 1,
+          "price": 45000,
+          "total": 45000
+        },
+        {
+          "foodName": "ОЛИВЬЕ",
+          "quantity": 1,
+          "price": 22000,
+          "total": 22000
+        },
+        {
+          "foodName": "МАНТЫ ПОРТС",
+          "quantity": 2,
+          "price": 40000,
+          "total": 80000
+        }
+      ]
+    },
+    {
+      "_id": "69787f84c942c2bd5d998c32",
+      "orderNumber": 139,
+      "table": "Noma'lum",
+      "tableId": "69764620a3e807a10e55dcf2",
+      "createdAt": "2026-01-27T09:04:04.688Z",
+      "paidAt": "2026-01-27T09:28:16.585Z",
+      "grandTotal": 73700,
+      "storedGrandTotal": 73700,
+      "items": [
+        {
+          "foodName": "ГЎШ СОМСА",
+          "quantity": 2,
+          "price": 12000,
+          "total": 24000
+        },
+        {
+          "foodName": "НАН",
+          "quantity": 1,
+          "price": 4000,
+          "total": 4000
+        },
+        {
+          "foodName": "ЧАЙ ЗЕЛЕНЫЙ",
+          "quantity": 1,
+          "price": 4000,
+          "total": 4000
+        },
+        {
+          "foodName": "СУП КУЗА",
+          "quantity": 1,
+          "price": 35000,
+          "total": 35000
+        }
+      ]
+    },
+    {
+      "_id": "697881ecc942c2bd5da169b7",
+      "orderNumber": 143,
+      "table": "Noma'lum",
+      "tableId": "697645fea3e807a10e55dc44",
+      "createdAt": "2026-01-27T09:14:20.708Z",
+      "paidAt": "2026-01-27T09:43:05.540Z",
+      "grandTotal": 79200,
+      "storedGrandTotal": 79200,
+      "items": [
+        {
+          "foodName": "ЖАРЕНЫЙ ЛАГМАН",
+          "quantity": 2,
+          "price": 30000,
+          "total": 60000
+        },
+        {
+          "foodName": "ЧАЙ ЗЕЛЕНЫЙ",
+          "quantity": 1,
+          "price": 4000,
+          "total": 4000
+        },
+        {
+          "foodName": "НАН",
+          "quantity": 2,
+          "price": 4000,
+          "total": 8000
+        }
+      ]
+    },
+    {
+      "_id": "69788421c942c2bd5da86b13",
+      "orderNumber": 146,
+      "table": "Noma'lum",
+      "tableId": "69764602a3e807a10e55dc7d",
+      "createdAt": "2026-01-27T09:23:45.768Z",
+      "paidAt": "2026-01-27T11:53:09.905Z",
+      "grandTotal": 70400,
+      "storedGrandTotal": 70400,
+      "items": [
+        {
+          "foodName": "ГЎШ СОМСА",
+          "quantity": 3,
+          "price": 12000,
+          "total": 36000
+        },
+        {
+          "foodName": "СВЕЖИЙ САЛАТ",
+          "quantity": 1,
+          "price": 18000,
+          "total": 18000
+        },
+        {
+          "foodName": "ФРИ",
+          "quantity": 1,
+          "price": 10000,
+          "total": 10000
+        }
+      ]
+    },
+    {
+      "_id": "6978842ec942c2bd5da885f5",
+      "orderNumber": 147,
+      "table": "Noma'lum",
+      "tableId": "6976461ea3e807a10e55dcde",
+      "createdAt": "2026-01-27T09:23:58.011Z",
+      "paidAt": "2026-01-27T09:51:36.970Z",
+      "grandTotal": 41800,
+      "storedGrandTotal": 41800,
+      "items": [
+        {
+          "foodName": "ЧАЙ ЗЕЛЕНЫЙ",
+          "quantity": 1,
+          "price": 4000,
+          "total": 4000
+        },
+        {
+          "foodName": "НАН",
+          "quantity": 1,
+          "price": 4000,
+          "total": 4000
+        },
+        {
+          "foodName": "СУП ЛАГМАН",
+          "quantity": 1,
+          "price": 30000,
+          "total": 30000
+        }
+      ]
+    },
+    {
+      "_id": "6978854ec942c2bd5da91fdd",
+      "orderNumber": 148,
+      "table": "Noma'lum",
+      "tableId": "697645fea3e807a10e55dc40",
+      "createdAt": "2026-01-27T09:28:46.147Z",
+      "paidAt": "2026-01-27T11:53:00.419Z",
+      "grandTotal": 84700,
+      "storedGrandTotal": 84700,
+      "items": [
+        {
+          "foodName": "МЯСО С РИСОМ",
+          "quantity": 1,
+          "price": 50000,
+          "total": 50000
+        },
+        {
+          "foodName": "ПЕПСИ 1 Л",
+          "quantity": 1,
+          "price": 13000,
+          "total": 13000
+        },
+        {
+          "foodName": "НАН",
+          "quantity": 1,
+          "price": 4000,
+          "total": 4000
+        },
+        {
+          "foodName": "ФРИ",
+          "quantity": 1,
+          "price": 10000,
+          "total": 10000
+        }
+      ]
+    },
+    {
+      "_id": "697888eec942c2bd5db03d0d",
+      "orderNumber": 151,
+      "table": "Noma'lum",
+      "tableId": "69764604a3e807a10e55dc98",
+      "createdAt": "2026-01-27T09:44:14.841Z",
+      "paidAt": "2026-01-27T10:18:17.500Z",
+      "grandTotal": 116600,
+      "storedGrandTotal": 116600,
+      "items": [
+        {
+          "foodName": "ГОВЯДИНА КУСКОВОЙ ШАШЛИК",
+          "quantity": 2,
+          "price": 28000,
+          "total": 56000
+        },
+        {
+          "foodName": "ГИЖДИВАН ШАШЛИК",
+          "quantity": 1,
+          "price": 18000,
+          "total": 18000
+        },
+        {
+          "foodName": "НАН",
+          "quantity": 1,
+          "price": 4000,
+          "total": 4000
+        },
+        {
+          "foodName": "АЧЧИК-ЧУЧУК",
+          "quantity": 1,
+          "price": 18000,
+          "total": 18000
+        },
+        {
+          "foodName": "ЧЕРНЫЙ ЧАЙ С ЛИМОНОМ",
+          "quantity": 1,
+          "price": 10000,
+          "total": 10000
+        }
+      ]
+    },
+    {
+      "_id": "69788ae4c942c2bd5db3765c",
+      "orderNumber": 152,
+      "table": "Noma'lum",
+      "tableId": "69764604a3e807a10e55dc98",
+      "createdAt": "2026-01-27T09:52:36.702Z",
+      "paidAt": "2026-01-27T10:57:02.889Z",
+      "grandTotal": 102300,
+      "storedGrandTotal": 102300,
+      "items": [
+        {
+          "foodName": "КФС ФИЛЕ 0.5 КГ",
+          "quantity": 1,
+          "price": 45000,
+          "total": 45000
+        },
+        {
+          "foodName": "МУЖСКОЙ КАПРИЗ",
+          "quantity": 1,
+          "price": 30000,
+          "total": 30000
+        },
+        {
+          "foodName": "ЗЕЛЕНЫЙ ЧАЙ С ЛИМОНОМ",
+          "quantity": 1,
+          "price": 10000,
+          "total": 10000
+        },
+        {
+          "foodName": "НАН",
+          "quantity": 2,
+          "price": 4000,
+          "total": 8000
+        }
+      ]
+    },
+    {
+      "_id": "69788dbdc942c2bd5db4e93b",
+      "orderNumber": 155,
+      "table": "Noma'lum",
+      "tableId": "697645fea3e807a10e55dc44",
+      "createdAt": "2026-01-27T10:04:45.881Z",
+      "paidAt": "2026-01-27T10:34:05.054Z",
+      "grandTotal": 61600,
+      "storedGrandTotal": 61600,
+      "items": [
+        {
+          "foodName": "СУП ЛАГМАН",
+          "quantity": 1,
+          "price": 30000,
+          "total": 30000
+        },
+        {
+          "foodName": "ЧАЙ ЗЕЛЕНЫЙ",
+          "quantity": 1,
+          "price": 4000,
+          "total": 4000
+        },
+        {
+          "foodName": "НАН",
+          "quantity": 1,
+          "price": 4000,
+          "total": 4000
+        },
+        {
+          "foodName": "СВЕЖИЙ САЛАТ",
+          "quantity": 1,
+          "price": 18000,
+          "total": 18000
+        }
+      ]
+    },
+    {
+      "_id": "697892abc942c2bd5db6d611",
+      "orderNumber": 158,
+      "table": "Noma'lum",
+      "tableId": "69764604a3e807a10e55dc98",
+      "createdAt": "2026-01-27T10:25:47.147Z",
+      "paidAt": "2026-01-27T11:05:47.198Z",
+      "grandTotal": 210100,
+      "storedGrandTotal": 210100,
+      "items": [
+        {
+          "foodName": "ГИЖДИВАН ШАШЛИК",
+          "quantity": 5,
+          "price": 18000,
+          "total": 90000
+        },
+        {
+          "foodName": "СУП ЛАГМАН",
+          "quantity": 1,
+          "price": 30000,
+          "total": 30000
+        },
+        {
+          "foodName": "СУП КУЗА",
+          "quantity": 1,
+          "price": 35000,
+          "total": 35000
+        },
+        {
+          "foodName": "НАН",
+          "quantity": 5,
+          "price": 4000,
+          "total": 20000
+        },
+        {
+          "foodName": "ЧАЙ С МОЛОКОМ",
+          "quantity": 1,
+          "price": 12000,
+          "total": 12000
+        },
+        {
+          "foodName": "САҲАР",
+          "quantity": 1,
+          "price": 4000,
+          "total": 4000
+        },
+        {
+          "foodName": "АКС ПЕПСИ 0.5 Л",
+          "quantity": 1,
+          "price": 0,
+          "total": 0
+        }
+      ]
+    },
+    {
+      "_id": "69789731c942c2bd5dbeb356",
+      "orderNumber": 163,
+      "table": "Noma'lum",
+      "tableId": "69764620a3e807a10e55dcf2",
+      "createdAt": "2026-01-27T10:45:05.565Z",
+      "paidAt": "2026-01-27T11:13:01.900Z",
+      "grandTotal": 101200,
+      "storedGrandTotal": 101200,
+      "items": [
+        {
+          "foodName": "ГИЖДИВАН ШАШЛИК",
+          "quantity": 4,
+          "price": 18000,
+          "total": 72000
+        },
+        {
+          "foodName": "НАН",
+          "quantity": 1,
+          "price": 4000,
+          "total": 4000
+        },
+        {
+          "foodName": "СОК",
+          "quantity": 1,
+          "price": 16000,
+          "total": 16000
+        },
+        {
+          "foodName": "АКС ПЕПСИ 0.26 Л",
+          "quantity": 2,
+          "price": 0,
+          "total": 0
+        }
+      ]
+    },
+    {
+      "_id": "69789ca8c942c2bd5dcc7dd7",
+      "orderNumber": 165,
+      "table": "Noma'lum",
+      "tableId": "6976461ea3e807a10e55dce2",
+      "createdAt": "2026-01-27T11:08:24.731Z",
+      "paidAt": "2026-01-27T11:28:31.726Z",
+      "grandTotal": 11000,
+      "storedGrandTotal": 11000,
+      "items": [
+        {
+          "foodName": "ЧЕРНЫЙ ЧАЙ С ЛИМОНОМ",
+          "quantity": 1,
+          "price": 10000,
+          "total": 10000
+        }
+      ]
+    },
+    {
+      "_id": "69789eb8c942c2bd5dcd4803",
+      "orderNumber": 166,
+      "table": "Noma'lum",
+      "tableId": "697645fea3e807a10e55dc40",
+      "createdAt": "2026-01-27T11:17:12.757Z",
+      "paidAt": "2026-01-27T11:58:06.852Z",
+      "grandTotal": 85800,
+      "storedGrandTotal": 85800,
+      "items": [
+        {
+          "foodName": "СУП ЛАГМАН",
+          "quantity": 2,
+          "price": 30000,
+          "total": 60000
+        },
+        {
+          "foodName": "НАН",
+          "quantity": 2,
+          "price": 4000,
+          "total": 8000
+        },
+        {
+          "foodName": "ЧЕРНЫЙ ЧАЙ С ЛИМОНОМ",
+          "quantity": 1,
+          "price": 10000,
+          "total": 10000
+        }
+      ]
+    },
+    {
+      "_id": "6978a30bc942c2bd5dd1bfd2",
+      "orderNumber": 171,
+      "table": "Noma'lum",
+      "tableId": "69764621a3e807a10e55dcf6",
+      "createdAt": "2026-01-27T11:35:39.543Z",
+      "paidAt": "2026-01-27T12:18:48.087Z",
+      "grandTotal": 37400,
+      "storedGrandTotal": 37400,
+      "items": [
+        {
+          "foodName": "СУП ГОВЯЖИЙ",
+          "quantity": 1,
+          "price": 30000,
+          "total": 30000
+        },
+        {
+          "foodName": "НАН",
+          "quantity": 1,
+          "price": 4000,
+          "total": 4000
+        }
+      ]
+    },
+    {
+      "_id": "6978b0b0c942c2bd5ddca477",
+      "orderNumber": 182,
+      "table": "Noma'lum",
+      "tableId": "",
+      "createdAt": "2026-01-27T12:33:52.454Z",
+      "paidAt": "2026-01-27T12:34:00.489Z",
+      "grandTotal": 0,
+      "storedGrandTotal": 0,
+      "items": [
+        {
+          "foodName": "АКС ПЕПСИ 1 Л",
+          "quantity": 2,
+          "price": 0,
+          "total": 0
+        },
+        {
+          "foodName": "АКС СОЛА 1 Л",
+          "quantity": 2,
+          "price": 0,
+          "total": 0
+        }
+      ]
+    }
+  ]
+}
