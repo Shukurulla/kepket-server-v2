@@ -504,7 +504,7 @@ exports.getPaymentsList = async (req, res, next) => {
     }
 
     const payments = await Order.find(query)
-      .select('orderNumber tableName waiterName grandTotal subtotal serviceCharge paymentType paymentSplit paidAt items shiftId')
+      .select('orderNumber tableName waiterName grandTotal subtotal serviceCharge paymentType paymentSplit paidAt items shiftId comment paymentComment')
       .sort({ paidAt: -1 })
       .lean();
 
@@ -527,6 +527,7 @@ exports.getPaymentsList = async (req, res, next) => {
         paymentSplit: order.paymentSplit,
         paidAt: order.paidAt,
         itemsCount: activeItems.length,
+        comment: order.comment || order.paymentComment || null,
         items: (order.items || []).map(item => ({
           foodName: item.foodName || item.name || 'Noma\'lum',
           quantity: item.quantity || 1,

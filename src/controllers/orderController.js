@@ -319,12 +319,6 @@ const createOrder = asyncHandler(async (req, res) => {
             foodName: food.foodName,
             reason: `Kunlik limit tugagan (${food.dailyOrderLimit} ta)`
           });
-        } else if (totalQty > remaining) {
-          unavailableFoods.push({
-            foodId: food._id,
-            foodName: food.foodName,
-            reason: `Faqat ${remaining} ta qolgan (${totalQty} ta so'ralgan)`
-          });
         }
       }
 

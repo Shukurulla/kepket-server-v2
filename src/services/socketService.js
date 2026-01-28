@@ -371,6 +371,17 @@ class SocketService {
 
       await order.save();
 
+      // Increment daily order count for each food (auto stop-list)
+      const Food = require('../models/food');
+      for (const item of order.items) {
+        if (item.foodId) {
+          const food = await Food.findById(item.foodId);
+          if (food && food.autoStopListEnabled && food.dailyOrderLimit > 0) {
+            await food.incrementDailyOrderCount(item.quantity || 1);
+          }
+        }
+      }
+
       // Update table status
       if (data.tableId) {
         await Table.findByIdAndUpdate(data.tableId, {
@@ -671,6 +682,17 @@ class SocketService {
       // Save the order
       await order.save();
       console.log('add_order_items: Items saved to database, new items count:', itemsToAdd.length);
+
+      // Increment daily order count for each food (auto stop-list)
+      const Food = require('../models/food');
+      for (const item of itemsToAdd) {
+        if (item.foodId) {
+          const food = await Food.findById(item.foodId);
+          if (food && food.autoStopListEnabled && food.dailyOrderLimit > 0) {
+            await food.incrementDailyOrderCount(item.quantity || 1);
+          }
+        }
+      }
 
       // Now get the fully populated order for emitting
       const populatedOrder = await Order.findById(orderId)
