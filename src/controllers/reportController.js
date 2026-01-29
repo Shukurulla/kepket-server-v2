@@ -120,11 +120,29 @@ exports.getDashboard = async (req, res, next) => {
     // Calculate metrics
     const totalOrders = orders.length;
     const completedOrders = orders.filter(o => o.isPaid === true).length;
+
+    // MUHIM: Bekor qilingan itemlarni hisobga olmaslik
+    // Faqat aktiv itemlar summasi hisoblanadi
+    const getOrderActiveTotal = (order) => {
+      const activeItems = (order.items || []).filter(item =>
+        !item.isDeleted && item.status !== 'cancelled' && !item.isCancelled
+      );
+      const activeFoodTotal = activeItems.reduce((sum, item) => sum + ((item.price || 0) * (item.quantity || 0)), 0);
+      const activeServiceCharge = Math.round(activeFoodTotal * 0.1);
+      return activeFoodTotal + activeServiceCharge;
+    };
+
     const totalRevenue = orders
       .filter(o => o.isPaid === true)
-      .reduce((sum, o) => sum + (o.grandTotal || o.subtotal || 0), 0);
+      .reduce((sum, o) => sum + getOrderActiveTotal(o), 0);
 
-    const totalItems = orders.reduce((sum, o) => sum + o.items.length, 0);
+    // Faqat aktiv itemlar soni
+    const totalItems = orders.reduce((sum, o) => {
+      const activeItems = (o.items || []).filter(item =>
+        !item.isDeleted && item.status !== 'cancelled' && !item.isCancelled
+      );
+      return sum + activeItems.length;
+    }, 0);
 
     // Get active tables
     const activeTables = await Table.countDocuments({
@@ -152,6 +170,13 @@ exports.getDashboard = async (req, res, next) => {
         $match: aggregateFilter
       },
       { $unwind: '$items' },
+      // MUHIM: Bekor qilingan itemlarni chiqarib tashlash
+      {
+        $match: {
+          'items.status': { $ne: 'cancelled' },
+          'items.isCancelled': { $ne: true }
+        }
+      },
       {
         $group: {
           _id: '$items.foodId',
