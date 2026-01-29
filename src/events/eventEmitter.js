@@ -9,6 +9,7 @@ const ORDER_EVENTS = {
   DELETED: 'order:deleted',
   APPROVED: 'order:approved',
   REJECTED: 'order:rejected',
+  CANCELLED: 'order:cancelled',
   PAID: 'order:paid',
   ITEM_READY: 'item:ready',
   ALL_ITEMS_READY: 'item:all_ready'
@@ -90,6 +91,14 @@ const emitOrderEvent = (restaurantId, eventType, data) => {
 
     case ORDER_EVENTS.REJECTED:
       // Order bekor qilinganda barcha rollarga yuborish
+      socketService.emitToRole(restaurantId, 'cashier', 'order_cancelled', data);
+      socketService.emitToRole(restaurantId, 'waiter', 'order_cancelled', data);
+      socketService.emitToRole(restaurantId, 'admin', 'order_cancelled', data);
+      socketService.emitToRole(restaurantId, 'cook', 'order_cancelled', data);
+      break;
+
+    case ORDER_EVENTS.CANCELLED:
+      // Order yoki taomlar bekor qilinganda barcha rollarga yuborish
       socketService.emitToRole(restaurantId, 'cashier', 'order_cancelled', data);
       socketService.emitToRole(restaurantId, 'waiter', 'order_cancelled', data);
       socketService.emitToRole(restaurantId, 'admin', 'order_cancelled', data);

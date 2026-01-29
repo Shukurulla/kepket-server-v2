@@ -17,7 +17,7 @@ exports.getAll = async (req, res, next) => {
 
     const foods = await Food.find(filter)
       .populate('categoryId', 'title')
-      .sort({ order: 1, foodName: 1 });
+      .sort({ orderCount: -1, order: 1, foodName: 1 });
 
     // Yangi kun uchun dailyOrderCount ni tekshirish va reset qilish
     const now = new Date();
@@ -164,7 +164,7 @@ exports.getByCategory = async (req, res, next) => {
       restaurantId,
       categoryId,
       isAvailable: true
-    }).sort({ order: 1, foodName: 1 });
+    }).sort({ orderCount: -1, order: 1, foodName: 1 });
 
     res.json({
       success: true,
@@ -491,9 +491,10 @@ exports.getMenu = async (req, res, next) => {
       categories.map(async (category) => {
         // Barcha taomlarni qaytarish (stop listdagilar ham)
         // Waiter app ularni disabled holatda ko'rsatadi
+        // orderCount bo'yicha saralash (eng ko'p buyurtma qilinganlar birinchi)
         const foods = await Food.find({
           categoryId: category._id
-        }).sort({ order: 1, foodName: 1 });
+        }).sort({ orderCount: -1, order: 1, foodName: 1 });
 
         // Yangi kun uchun dailyOrderCount ni tekshirish
         const foodsData = foods.map(food => {
