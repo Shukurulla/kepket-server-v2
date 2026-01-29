@@ -87,7 +87,13 @@ const openShift = asyncHandler(async (req, res) => {
 
   // Yangi smena ochilganda barcha taomlarning kunlik buyurtma hisoblagichini reset qilish
   // Bu auto stop list muammosini hal qiladi - eski smenadagi limitlar yangi smenaga o'tmaydi
-  await Food.resetAllDailyOrderCounts(restaurantId);
+  try {
+    const resetResult = await Food.resetAllDailyOrderCounts(restaurantId);
+    console.log(`[Shift #${shiftNumber}] Taomlar daily count reset qilindi:`, resetResult);
+  } catch (resetError) {
+    console.error(`[Shift #${shiftNumber}] Taomlar reset xatosi:`, resetError);
+    // Xato bo'lsa ham smena ochilishini to'xtatmaymiz
+  }
 
   // Real-time event yuborish
   emitShiftEvent(restaurantId.toString(), 'shift:opened', {
