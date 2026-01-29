@@ -1,4 +1,4 @@
-const { Shift, Order, Table } = require('../models');
+const { Shift, Order, Table, Food } = require('../models');
 const { asyncHandler, AppError } = require('../middleware/errorHandler');
 const socketService = require('../services/socketService');
 
@@ -84,6 +84,10 @@ const openShift = asyncHandler(async (req, res) => {
 
   // YANGI SMENA BO'SH BOSHLANADI!
   // Eski smenadagi orderlar o'tkazilmaydi - ular o'z smenasida qoladi
+
+  // Yangi smena ochilganda barcha taomlarning kunlik buyurtma hisoblagichini reset qilish
+  // Bu auto stop list muammosini hal qiladi - eski smenadagi limitlar yangi smenaga o'tmaydi
+  await Food.resetAllDailyOrderCounts(restaurantId);
 
   // Real-time event yuborish
   emitShiftEvent(restaurantId.toString(), 'shift:opened', {
