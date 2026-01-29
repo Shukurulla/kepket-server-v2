@@ -135,8 +135,9 @@ exports.getFullReport = async (req, res, next) => {
         !item.isDeleted && item.status !== 'cancelled' && !item.isCancelled
       );
       const activeFoodTotal = activeItems.reduce((sum, item) => sum + ((item.price || 0) * (item.quantity || 0)), 0);
-      // Xizmat haqi (10%) faqat aktiv itemlar summasi bo'yicha
-      const activeServiceCharge = Math.round(activeFoodTotal * 0.1);
+      // Saboy/takeaway buyurtmalari uchun xizmat haqi 0
+      const isSaboy = order.orderType === 'saboy' || order.orderType === 'takeaway';
+      const activeServiceCharge = isSaboy ? 0 : Math.round(activeFoodTotal * 0.1);
       const activeGrandTotal = activeFoodTotal + activeServiceCharge;
       return { activeFoodTotal, activeServiceCharge, activeGrandTotal };
     };
@@ -504,7 +505,7 @@ exports.getPaymentsList = async (req, res, next) => {
     }
 
     const payments = await Order.find(query)
-      .select('orderNumber tableName waiterName grandTotal subtotal serviceCharge paymentType paymentSplit paidAt items shiftId comment paymentComment')
+      .select('orderNumber tableName waiterName grandTotal subtotal serviceCharge serviceChargePercent orderType paymentType paymentSplit paidAt items shiftId comment paymentComment')
       .sort({ paidAt: -1 })
       .lean();
 
@@ -512,7 +513,10 @@ exports.getPaymentsList = async (req, res, next) => {
     const formattedPayments = payments.map((order) => {
       const activeItems = (order.items || []).filter(i => !i.isDeleted && i.status !== 'cancelled' && !i.isCancelled);
       const activeFoodTotal = activeItems.reduce((sum, item) => sum + ((item.price || 0) * (item.quantity || 0)), 0);
-      const activeServiceCharge = Math.round(activeFoodTotal * 0.1);
+
+      // Saboy/takeaway buyurtmalari uchun xizmat haqi 0
+      const isSaboy = order.orderType === 'saboy' || order.orderType === 'takeaway';
+      const activeServiceCharge = isSaboy ? 0 : Math.round(activeFoodTotal * 0.1);
       const activeGrandTotal = activeFoodTotal + activeServiceCharge;
 
       return {
