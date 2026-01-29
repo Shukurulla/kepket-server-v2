@@ -269,12 +269,48 @@ exports.getSalesReport = async (req, res, next) => {
           isPaid: true
         }
       },
+      // MUHIM: Bekor qilingan itemlarni chiqarib, aktiv summa hisoblash
+      {
+        $addFields: {
+          activeItems: {
+            $filter: {
+              input: '$items',
+              as: 'item',
+              cond: {
+                $and: [
+                  { $ne: ['$$item.status', 'cancelled'] },
+                  { $ne: ['$$item.isCancelled', true] },
+                  { $ne: ['$$item.isDeleted', true] }
+                ]
+              }
+            }
+          }
+        }
+      },
+      {
+        $addFields: {
+          activeFoodTotal: {
+            $reduce: {
+              input: '$activeItems',
+              initialValue: 0,
+              in: { $add: ['$$value', { $multiply: [{ $ifNull: ['$$this.price', 0] }, { $ifNull: ['$$this.quantity', 0] }] }] }
+            }
+          }
+        }
+      },
+      {
+        $addFields: {
+          activeGrandTotal: {
+            $add: ['$activeFoodTotal', { $round: [{ $multiply: ['$activeFoodTotal', 0.1] }, 0] }]
+          }
+        }
+      },
       {
         $group: {
           _id: dateFormat,
           totalOrders: { $sum: 1 },
-          totalRevenue: { $sum: '$grandTotal' },
-          totalItems: { $sum: { $size: '$items' } }
+          totalRevenue: { $sum: '$activeGrandTotal' },
+          totalItems: { $sum: { $size: '$activeItems' } }
         }
       },
       { $sort: { _id: 1 } }
@@ -438,11 +474,47 @@ exports.getStaffReport = async (req, res, next) => {
           status: { $ne: 'cancelled' }
         }
       },
+      // MUHIM: Bekor qilingan itemlarni chiqarib, aktiv summa hisoblash
+      {
+        $addFields: {
+          activeItems: {
+            $filter: {
+              input: '$items',
+              as: 'item',
+              cond: {
+                $and: [
+                  { $ne: ['$$item.status', 'cancelled'] },
+                  { $ne: ['$$item.isCancelled', true] },
+                  { $ne: ['$$item.isDeleted', true] }
+                ]
+              }
+            }
+          }
+        }
+      },
+      {
+        $addFields: {
+          activeFoodTotal: {
+            $reduce: {
+              input: '$activeItems',
+              initialValue: 0,
+              in: { $add: ['$$value', { $multiply: [{ $ifNull: ['$$this.price', 0] }, { $ifNull: ['$$this.quantity', 0] }] }] }
+            }
+          }
+        }
+      },
+      {
+        $addFields: {
+          activeGrandTotal: {
+            $add: ['$activeFoodTotal', { $round: [{ $multiply: ['$activeFoodTotal', 0.1] }, 0] }]
+          }
+        }
+      },
       {
         $group: {
           _id: '$waiterId',
           totalOrders: { $sum: 1 },
-          totalRevenue: { $sum: '$grandTotal' },
+          totalRevenue: { $sum: '$activeGrandTotal' },
           completedOrders: {
             $sum: { $cond: [{ $eq: ['$isPaid', true] }, 1, 0] }
           }
@@ -555,11 +627,48 @@ exports.getPaymentReport = async (req, res, next) => {
           shiftId: { $exists: true, $ne: null, $ne: '' }
         }
       },
+      // MUHIM: Bekor qilingan itemlarni chiqarib, aktiv summa hisoblash
+      {
+        $addFields: {
+          activeItems: {
+            $filter: {
+              input: '$items',
+              as: 'item',
+              cond: {
+                $and: [
+                  { $ne: ['$$item.status', 'cancelled'] },
+                  { $ne: ['$$item.isCancelled', true] },
+                  { $ne: ['$$item.isDeleted', true] }
+                ]
+              }
+            }
+          }
+        }
+      },
+      {
+        $addFields: {
+          activeFoodTotal: {
+            $reduce: {
+              input: '$activeItems',
+              initialValue: 0,
+              in: { $add: ['$$value', { $multiply: [{ $ifNull: ['$$this.price', 0] }, { $ifNull: ['$$this.quantity', 0] }] }] }
+            }
+          }
+        }
+      },
+      {
+        $addFields: {
+          // Aktiv grand total = taomlar + 10% xizmat haqi
+          activeGrandTotal: {
+            $add: ['$activeFoodTotal', { $round: [{ $multiply: ['$activeFoodTotal', 0.1] }, 0] }]
+          }
+        }
+      },
       {
         $group: {
           _id: '$paymentType',
           count: { $sum: 1 },
-          total: { $sum: '$grandTotal' }
+          total: { $sum: '$activeGrandTotal' }
         }
       },
       { $sort: { total: -1 } }
@@ -608,11 +717,47 @@ exports.getHourlyAnalysis = async (req, res, next) => {
           status: { $ne: 'cancelled' }
         }
       },
+      // MUHIM: Bekor qilingan itemlarni chiqarib, aktiv summa hisoblash
+      {
+        $addFields: {
+          activeItems: {
+            $filter: {
+              input: '$items',
+              as: 'item',
+              cond: {
+                $and: [
+                  { $ne: ['$$item.status', 'cancelled'] },
+                  { $ne: ['$$item.isCancelled', true] },
+                  { $ne: ['$$item.isDeleted', true] }
+                ]
+              }
+            }
+          }
+        }
+      },
+      {
+        $addFields: {
+          activeFoodTotal: {
+            $reduce: {
+              input: '$activeItems',
+              initialValue: 0,
+              in: { $add: ['$$value', { $multiply: [{ $ifNull: ['$$this.price', 0] }, { $ifNull: ['$$this.quantity', 0] }] }] }
+            }
+          }
+        }
+      },
+      {
+        $addFields: {
+          activeGrandTotal: {
+            $add: ['$activeFoodTotal', { $round: [{ $multiply: ['$activeFoodTotal', 0.1] }, 0] }]
+          }
+        }
+      },
       {
         $group: {
           _id: { $hour: '$createdAt' },
           orderCount: { $sum: 1 },
-          revenue: { $sum: '$grandTotal' }
+          revenue: { $sum: '$activeGrandTotal' }
         }
       },
       { $sort: { _id: 1 } }
