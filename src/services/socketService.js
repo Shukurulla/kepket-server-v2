@@ -883,6 +883,10 @@ class SocketService {
       const serviceFee = Math.round(subtotal * 0.1); // 10% service fee
       const total = subtotal + serviceFee;
 
+      // Soatlik to'lov ma'lumotlari (kabinalar uchun)
+      const hasHourlyCharge = order.tableId?.hasHourlyCharge || order.hasHourlyCharge || false;
+      const hourlyChargeAmount = order.tableId?.hourlyChargeAmount || order.hourlyChargeAmount || 0;
+
       // Format order data for printing
       const printData = {
         orderId: order._id.toString(),
@@ -906,6 +910,9 @@ class SocketService {
         total,
         orderType: order.orderType || 'dine-in',
         createdAt: order.createdAt,
+        // Soatlik to'lov (kabinalar uchun)
+        hasHourlyCharge,
+        hourlyChargeAmount,
         requestedBy: waiterName || 'Ofitsiant',
         requestedAt: new Date().toISOString()
       };
