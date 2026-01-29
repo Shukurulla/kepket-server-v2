@@ -282,18 +282,43 @@ exports.update = async (req, res, next) => {
       updates.image = '/uploads/' + req.file.filename;
     }
 
-    const food = await Food.findOneAndUpdate(
-      { _id: id, restaurantId },
-      updates,
-      { new: true, runValidators: true }
-    ).populate('categoryId', 'title');
-
-    if (!food) {
+    // Oldin mavjud food ni olish (limit o'zgarishini tekshirish uchun)
+    const existingFood = await Food.findOne({ _id: id, restaurantId });
+    if (!existingFood) {
       return res.status(404).json({
         success: false,
         message: 'Food not found'
       });
     }
+
+    // Agar dailyOrderLimit o'zgarayotgan bo'lsa va avto to'xtatilgan bo'lsa
+    if (updates.dailyOrderLimit !== undefined) {
+      const newLimit = Math.max(0, parseInt(updates.dailyOrderLimit) || 0);
+      const wasAutoStopped = existingFood.isInStopList && existingFood.autoStopReason;
+
+      // Yangi limit joriy countdan katta yoki 0 (cheksiz) bo'lsa - stop listdan chiqarish
+      if (wasAutoStopped && (newLimit > existingFood.dailyOrderCount || newLimit === 0)) {
+        updates.isInStopList = false;
+        updates.autoStopReason = null;
+        updates.autoStoppedAt = null;
+      }
+    }
+
+    // Agar autoStopListEnabled o'chirilayotgan bo'lsa va avto to'xtatilgan bo'lsa
+    if (updates.autoStopListEnabled === false || updates.autoStopListEnabled === 'false') {
+      const wasAutoStopped = existingFood.isInStopList && existingFood.autoStopReason;
+      if (wasAutoStopped) {
+        updates.isInStopList = false;
+        updates.autoStopReason = null;
+        updates.autoStoppedAt = null;
+      }
+    }
+
+    const food = await Food.findOneAndUpdate(
+      { _id: id, restaurantId },
+      updates,
+      { new: true, runValidators: true }
+    ).populate('categoryId', 'title');
 
     // Emit socket event
     socketService.emitToRestaurant(restaurantId, 'food:updated', food);
@@ -720,12 +745,35 @@ exports.updateAutoStopSettings = async (req, res, next) => {
       });
     }
 
+    const oldLimit = food.dailyOrderLimit || 0;
+    const wasAutoStopped = food.isInStopList && food.autoStopReason;
+
     // Sozlamalarni yangilash
     if (autoStopListEnabled !== undefined) {
       food.autoStopListEnabled = autoStopListEnabled;
+      // Agar auto-stop o'chirilsa va avto to'xtatilgan bo'lsa - stop listdan chiqarish
+      if (!autoStopListEnabled && wasAutoStopped) {
+        food.isInStopList = false;
+        food.autoStopReason = null;
+        food.autoStoppedAt = null;
+      }
     }
     if (dailyOrderLimit !== undefined) {
-      food.dailyOrderLimit = Math.max(0, parseInt(dailyOrderLimit) || 0);
+      const newLimit = Math.max(0, parseInt(dailyOrderLimit) || 0);
+      food.dailyOrderLimit = newLimit;
+
+      // Agar yangi limit joriy countdan katta bo'lsa va avto to'xtatilgan bo'lsa - stop listdan chiqarish
+      if (newLimit > food.dailyOrderCount && wasAutoStopped) {
+        food.isInStopList = false;
+        food.autoStopReason = null;
+        food.autoStoppedAt = null;
+      }
+      // Agar limit 0 ga tushirilsa (cheksiz) va avto to'xtatilgan bo'lsa - stop listdan chiqarish
+      if (newLimit === 0 && wasAutoStopped) {
+        food.isInStopList = false;
+        food.autoStopReason = null;
+        food.autoStoppedAt = null;
+      }
     }
 
     await food.save();
@@ -743,7 +791,8 @@ exports.updateAutoStopSettings = async (req, res, next) => {
         autoStopListEnabled: food.autoStopListEnabled,
         dailyOrderLimit: food.dailyOrderLimit,
         dailyOrderCount: food.dailyOrderCount,
-        remaining: Math.max(0, food.dailyOrderLimit - food.dailyOrderCount)
+        isInStopList: food.isInStopList,
+        remaining: food.dailyOrderLimit > 0 ? Math.max(0, food.dailyOrderLimit - food.dailyOrderCount) : null
       }
     });
   } catch (error) {
