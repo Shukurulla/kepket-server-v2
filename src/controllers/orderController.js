@@ -421,6 +421,17 @@ const createOrder = asyncHandler(async (req, res) => {
     isNewOrder = true;
     const orderNumber = await Order.getNextOrderNumber(restaurantId);
 
+    // Table dan hourly charge ma'lumotlarini olish
+    let tableHasHourlyCharge = false;
+    let tableHourlyChargeAmount = 0;
+    if (tableId) {
+      const tableForHourly = await Table.findById(tableId);
+      if (tableForHourly) {
+        tableHasHourlyCharge = tableForHourly.hasHourlyCharge || false;
+        tableHourlyChargeAmount = tableForHourly.hourlyChargeAmount || 0;
+      }
+    }
+
     order = new Order({
       restaurantId,
       shiftId: activeShift._id,
@@ -436,7 +447,10 @@ const createOrder = asyncHandler(async (req, res) => {
       approvedAt: role === 'waiter' || role === 'admin' ? new Date() : null,
       source: role === 'admin' ? 'admin' : 'waiter',
       comment,
-      surcharge
+      surcharge,
+      // Bandlik haqi (kabinalar uchun)
+      hasHourlyCharge: tableHasHourlyCharge,
+      hourlyChargeAmount: tableHourlyChargeAmount
     });
 
     await order.save();

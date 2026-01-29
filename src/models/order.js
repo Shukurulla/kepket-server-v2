@@ -242,6 +242,26 @@ const orderSchema = new mongoose.Schema({
     default: 0,
     min: 0
   },
+  // Bandlik haqi (kabinalar uchun soatlik to'lov)
+  hourlyCharge: {
+    type: Number,
+    default: 0,
+    min: 0
+  },
+  hourlyChargeHours: {
+    type: Number,
+    default: 0,
+    min: 0
+  },
+  hourlyChargeAmount: {
+    type: Number,
+    default: 0,
+    min: 0
+  },
+  hasHourlyCharge: {
+    type: Boolean,
+    default: false
+  },
   grandTotal: {
     type: Number,
     default: 0,
@@ -452,8 +472,8 @@ orderSchema.methods.recalculateTotals = function() {
     this.discount = Math.round(this.subtotal * (this.discountPercent / 100));
   }
 
-  // Calculate grand total
-  this.grandTotal = this.subtotal + this.serviceCharge + this.surcharge - this.discount;
+  // Calculate grand total (bandlik haqi bilan)
+  this.grandTotal = this.subtotal + this.serviceCharge + this.surcharge + (this.hourlyCharge || 0) - this.discount;
 
   // Check if all items are ready
   this.allItemsReady = activeItems.length > 0 &&
@@ -545,7 +565,25 @@ orderSchema.methods.updateItemQuantity = function(itemId, quantity) {
 };
 
 // Method: Process payment
-orderSchema.methods.processPayment = function(paymentType, paidById, paymentSplit = null, comment = null) {
+orderSchema.methods.processPayment = async function(paymentType, paidById, paymentSplit = null, comment = null) {
+  // Bandlik haqini hisoblash (agar stol soatlik to'lovga ega bo'lsa)
+  if (this.hasHourlyCharge && this.hourlyChargeAmount > 0) {
+    const createdAt = new Date(this.createdAt);
+    const now = new Date();
+    const diffMs = now.getTime() - createdAt.getTime();
+    const diffHours = diffMs / (1000 * 60 * 60);
+
+    // Minimal 1 soat hisoblanadi
+    const hours = Math.max(1, Math.ceil(diffHours));
+    const hourlyCharge = hours * this.hourlyChargeAmount;
+
+    this.hourlyChargeHours = hours;
+    this.hourlyCharge = hourlyCharge;
+
+    // Grand total ni qayta hisoblash (bandlik bilan)
+    this.grandTotal = this.subtotal + this.serviceCharge + this.surcharge + hourlyCharge - this.discount;
+  }
+
   this.isPaid = true;
   this.status = 'paid';
   this.paymentType = paymentType;
