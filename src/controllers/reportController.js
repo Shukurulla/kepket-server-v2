@@ -122,14 +122,16 @@ exports.getDashboard = async (req, res, next) => {
     const completedOrders = orders.filter(o => o.isPaid === true).length;
 
     // MUHIM: Bekor qilingan itemlarni hisobga olmaslik
-    // Faqat aktiv itemlar summasi hisoblanadi
+    // Faqat aktiv itemlar summasi hisoblanadi (bandlik haqi bilan)
     const getOrderActiveTotal = (order) => {
       const activeItems = (order.items || []).filter(item =>
         !item.isDeleted && item.status !== 'cancelled' && !item.isCancelled
       );
       const activeFoodTotal = activeItems.reduce((sum, item) => sum + ((item.price || 0) * (item.quantity || 0)), 0);
       const activeServiceCharge = Math.round(activeFoodTotal * 0.1);
-      return activeFoodTotal + activeServiceCharge;
+      // Bandlik haqi (hourlyCharge) ni ham qo'shish
+      const hourlyCharge = order.hourlyCharge || 0;
+      return activeFoodTotal + activeServiceCharge + hourlyCharge;
     };
 
     const totalRevenue = orders
