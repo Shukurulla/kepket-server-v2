@@ -1580,7 +1580,9 @@ const cancelItem = asyncHandler(async (req, res) => {
         quantity: item.quantity,
         price: item.price,
         total: item.price * item.quantity,
-        reason: reason
+        reason: reason,
+        categoryId: item.categoryId ? item.categoryId.toString() : null,
+        categoryName: item.categoryName || null
       }
     });
   }
@@ -1599,7 +1601,9 @@ const cancelItem = asyncHandler(async (req, res) => {
         total: item.price * item.quantity,
         cancelledBy: fullName,
         cancelledAt: item.cancelledAt,
-        reason: reason
+        reason: reason,
+        categoryId: item.categoryId ? item.categoryId.toString() : null,
+        categoryName: item.categoryName || null
       }
     }
   });
