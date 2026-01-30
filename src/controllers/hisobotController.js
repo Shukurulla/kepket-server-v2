@@ -138,8 +138,10 @@ exports.getFullReport = async (req, res, next) => {
       // Saboy/takeaway buyurtmalari uchun xizmat haqi 0
       const isSaboy = order.orderType === 'saboy' || order.orderType === 'takeaway';
       const activeServiceCharge = isSaboy ? 0 : Math.round(activeFoodTotal * 0.1);
-      const activeGrandTotal = activeFoodTotal + activeServiceCharge;
-      return { activeFoodTotal, activeServiceCharge, activeGrandTotal };
+      // Bandlik haqi (hourlyCharge) ni ham qo'shish
+      const hourlyCharge = order.hourlyCharge || 0;
+      const activeGrandTotal = activeFoodTotal + activeServiceCharge + hourlyCharge;
+      return { activeFoodTotal, activeServiceCharge, activeGrandTotal, hourlyCharge };
     };
 
     // ==========================================
@@ -149,12 +151,14 @@ exports.getFullReport = async (req, res, next) => {
     let totalRevenue = 0;
     let foodRevenue = 0;
     let serviceRevenue = 0;
+    let hourlyChargeRevenue = 0;
 
     paidOrders.forEach(order => {
-      const { activeFoodTotal, activeServiceCharge, activeGrandTotal } = getOrderActiveTotal(order);
+      const { activeFoodTotal, activeServiceCharge, activeGrandTotal, hourlyCharge } = getOrderActiveTotal(order);
       totalRevenue += activeGrandTotal;
       foodRevenue += activeFoodTotal;
       serviceRevenue += activeServiceCharge;
+      hourlyChargeRevenue += hourlyCharge;
     });
 
     // Cheklar soni
@@ -411,11 +415,12 @@ exports.getFullReport = async (req, res, next) => {
 
         // Sotuv hisoboti
         sales: {
-          totalRevenue,      // Jami tushum
-          foodRevenue,       // Taomlar summasi
-          serviceRevenue,    // Xizmat haqi (10%)
-          totalChecks,       // Cheklar soni
-          averageCheck       // O'rtacha chek
+          totalRevenue,           // Jami tushum
+          foodRevenue,            // Taomlar summasi
+          serviceRevenue,         // Xizmat haqi (10%)
+          hourlyChargeRevenue,    // Bandlik haqi (soatlik to'lov)
+          totalChecks,            // Cheklar soni
+          averageCheck            // O'rtacha chek
         },
 
         // To'lov usullari
@@ -505,7 +510,7 @@ exports.getPaymentsList = async (req, res, next) => {
     }
 
     const payments = await Order.find(query)
-      .select('orderNumber tableName waiterName grandTotal subtotal serviceCharge serviceChargePercent orderType paymentType paymentSplit paidAt items shiftId comment paymentComment')
+      .select('orderNumber tableName waiterName grandTotal subtotal serviceCharge serviceChargePercent orderType paymentType paymentSplit paidAt items shiftId comment paymentComment hourlyCharge hourlyChargeHours hourlyChargeAmount hasHourlyCharge')
       .sort({ paidAt: -1 })
       .lean();
 
@@ -517,7 +522,10 @@ exports.getPaymentsList = async (req, res, next) => {
       // Saboy/takeaway buyurtmalari uchun xizmat haqi 0
       const isSaboy = order.orderType === 'saboy' || order.orderType === 'takeaway';
       const activeServiceCharge = isSaboy ? 0 : Math.round(activeFoodTotal * 0.1);
-      const activeGrandTotal = activeFoodTotal + activeServiceCharge;
+
+      // Bandlik haqi (hourlyCharge) ni ham qo'shish
+      const hourlyCharge = order.hourlyCharge || 0;
+      const activeGrandTotal = activeFoodTotal + activeServiceCharge + hourlyCharge;
 
       return {
         _id: order._id,
@@ -527,6 +535,8 @@ exports.getPaymentsList = async (req, res, next) => {
         totalPrice: activeGrandTotal,
         subtotal: activeFoodTotal,
         serviceCharge: activeServiceCharge,
+        hourlyCharge: hourlyCharge,
+        hourlyChargeHours: order.hourlyChargeHours || 0,
         paymentType: order.paymentType,
         paymentSplit: order.paymentSplit,
         paidAt: order.paidAt,
