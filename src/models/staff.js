@@ -30,7 +30,6 @@ const staffSchema = new mongoose.Schema({
   password: {
     type: String,
     required: [true, 'Password is required'],
-    minlength: 4,
     select: false // Don't include in queries by default
   },
   avatar: String,
