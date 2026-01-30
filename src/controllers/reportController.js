@@ -128,7 +128,9 @@ exports.getDashboard = async (req, res, next) => {
         !item.isDeleted && item.status !== 'cancelled' && !item.isCancelled
       );
       const activeFoodTotal = activeItems.reduce((sum, item) => sum + ((item.price || 0) * (item.quantity || 0)), 0);
-      const activeServiceCharge = Math.round(activeFoodTotal * 0.1);
+      // Saboy/takeaway buyurtmalari uchun xizmat haqi 0
+      const isSaboy = order.orderType === 'saboy' || order.orderType === 'takeaway';
+      const activeServiceCharge = isSaboy ? 0 : Math.round(activeFoodTotal * 0.1);
       // Bandlik haqi (hourlyCharge) ni ham qo'shish
       const hourlyCharge = order.hourlyCharge || 0;
       return activeFoodTotal + activeServiceCharge + hourlyCharge;
@@ -344,7 +346,7 @@ exports.getSalesReport = async (req, res, next) => {
 exports.getFoodReport = async (req, res, next) => {
   try {
     const { restaurantId } = req.user;
-    const { startDate, endDate, categoryId, startTime, endTime } = req.query;
+    const { startDate, endDate, categoryId, startTime, endTime, shiftId } = req.query;
 
     // Toshkent timezone offset (UTC+5)
     const TASHKENT_OFFSET = 5 * 60; // minutlarda
@@ -357,37 +359,51 @@ exports.getFoodReport = async (req, res, next) => {
       return date;
     };
 
-    let start, end;
-
-    if (!startDate) {
-      start = new Date();
-      start.setDate(start.getDate() - 30);
-      start = createDateInTashkent(start.toISOString().split('T')[0], 0, 0, 0, 0);
-    } else if (startTime) {
-      const [hours, minutes] = startTime.split(':').map(Number);
-      start = createDateInTashkent(startDate, hours, minutes, 0, 0);
-    } else {
-      start = createDateInTashkent(startDate, 0, 0, 0, 0);
-    }
-
-    if (!endDate) {
-      end = new Date();
-    } else {
-      end = new Date(endDate + 'T00:00:00.000Z');
-    }
-
-    if (endTime) {
-      const [hours, minutes] = endTime.split(':').map(Number);
-      end = createDateInTashkent(endDate || new Date().toISOString().split('T')[0], hours, minutes, 59, 999);
-    } else {
-      end = createDateInTashkent(endDate || new Date().toISOString().split('T')[0], 23, 59, 59, 999);
-    }
-
     const matchStage = {
       restaurantId: new mongoose.Types.ObjectId(restaurantId),
-      createdAt: { $gte: start, $lte: end },
       status: { $ne: 'cancelled' }
     };
+
+    let start, end;
+
+    // ShiftId ga ustuvorlik
+    if (shiftId && shiftId.trim() !== '') {
+      try {
+        matchStage.shiftId = new mongoose.Types.ObjectId(shiftId);
+      } catch (err) {
+        return res.json({
+          success: true,
+          data: { startDate: new Date(), endDate: new Date(), foods: [] }
+        });
+      }
+    } else {
+      // Sana bo'yicha filter
+      if (!startDate) {
+        start = new Date();
+        start.setDate(start.getDate() - 30);
+        start = createDateInTashkent(start.toISOString().split('T')[0], 0, 0, 0, 0);
+      } else if (startTime) {
+        const [hours, minutes] = startTime.split(':').map(Number);
+        start = createDateInTashkent(startDate, hours, minutes, 0, 0);
+      } else {
+        start = createDateInTashkent(startDate, 0, 0, 0, 0);
+      }
+
+      if (!endDate) {
+        end = new Date();
+      } else {
+        end = new Date(endDate + 'T00:00:00.000Z');
+      }
+
+      if (endTime) {
+        const [hours, minutes] = endTime.split(':').map(Number);
+        end = createDateInTashkent(endDate || new Date().toISOString().split('T')[0], hours, minutes, 59, 999);
+      } else {
+        end = createDateInTashkent(endDate || new Date().toISOString().split('T')[0], 23, 59, 59, 999);
+      }
+
+      matchStage.createdAt = { $gte: start, $lte: end };
+    }
 
     const foodStats = await Order.aggregate([
       { $match: matchStage },
@@ -456,25 +472,41 @@ exports.getFoodReport = async (req, res, next) => {
 exports.getStaffReport = async (req, res, next) => {
   try {
     const { restaurantId } = req.user;
-    const { startDate, endDate, role } = req.query;
+    const { startDate, endDate, role, shiftId } = req.query;
 
-    const start = startDate ? new Date(startDate) : new Date();
-    const end = endDate ? new Date(endDate) : new Date();
+    const matchFilter = {
+      restaurantId: new mongoose.Types.ObjectId(restaurantId),
+      status: { $ne: 'cancelled' }
+    };
 
-    if (!startDate) {
-      start.setDate(start.getDate() - 30);
-      start.setHours(0, 0, 0, 0);
+    let start, end;
+
+    // ShiftId ga ustuvorlik
+    if (shiftId && shiftId.trim() !== '') {
+      try {
+        matchFilter.shiftId = new mongoose.Types.ObjectId(shiftId);
+      } catch (err) {
+        return res.json({
+          success: true,
+          data: { startDate: new Date(), endDate: new Date(), staff: [] }
+        });
+      }
+    } else {
+      start = startDate ? new Date(startDate) : new Date();
+      end = endDate ? new Date(endDate) : new Date();
+
+      if (!startDate) {
+        start.setDate(start.getDate() - 30);
+        start.setHours(0, 0, 0, 0);
+      }
+      end.setHours(23, 59, 59, 999);
+      matchFilter.createdAt = { $gte: start, $lte: end };
     }
-    end.setHours(23, 59, 59, 999);
 
     // Get waiter performance
     const waiterStats = await Order.aggregate([
       {
-        $match: {
-          restaurantId: new mongoose.Types.ObjectId(restaurantId),
-          createdAt: { $gte: start, $lte: end },
-          status: { $ne: 'cancelled' }
-        }
+        $match: matchFilter
       },
       // MUHIM: Bekor qilingan itemlarni chiqarib, aktiv summa hisoblash
       {
@@ -507,8 +539,23 @@ exports.getStaffReport = async (req, res, next) => {
       },
       {
         $addFields: {
+          // Saboy/takeaway buyurtmalari uchun xizmat haqi 0
+          isSaboy: {
+            $in: ['$orderType', ['saboy', 'takeaway']]
+          }
+        }
+      },
+      {
+        $addFields: {
+          activeServiceCharge: {
+            $cond: ['$isSaboy', 0, { $round: [{ $multiply: ['$activeFoodTotal', 0.1] }, 0] }]
+          }
+        }
+      },
+      {
+        $addFields: {
           activeGrandTotal: {
-            $add: ['$activeFoodTotal', { $round: [{ $multiply: ['$activeFoodTotal', 0.1] }, 0] }]
+            $add: ['$activeFoodTotal', '$activeServiceCharge', { $ifNull: ['$hourlyCharge', 0] }]
           }
         }
       },
@@ -660,9 +707,24 @@ exports.getPaymentReport = async (req, res, next) => {
       },
       {
         $addFields: {
-          // Aktiv grand total = taomlar + 10% xizmat haqi
+          // Saboy/takeaway buyurtmalari uchun xizmat haqi 0
+          isSaboy: {
+            $in: ['$orderType', ['saboy', 'takeaway']]
+          }
+        }
+      },
+      {
+        $addFields: {
+          activeServiceCharge: {
+            $cond: ['$isSaboy', 0, { $round: [{ $multiply: ['$activeFoodTotal', 0.1] }, 0] }]
+          }
+        }
+      },
+      {
+        $addFields: {
+          // Aktiv grand total = taomlar + xizmat haqi + bandlik haqi
           activeGrandTotal: {
-            $add: ['$activeFoodTotal', { $round: [{ $multiply: ['$activeFoodTotal', 0.1] }, 0] }]
+            $add: ['$activeFoodTotal', '$activeServiceCharge', { $ifNull: ['$hourlyCharge', 0] }]
           }
         }
       },
@@ -703,21 +765,39 @@ exports.getPaymentReport = async (req, res, next) => {
 exports.getHourlyAnalysis = async (req, res, next) => {
   try {
     const { restaurantId } = req.user;
-    const { date } = req.query;
+    const { date, shiftId } = req.query;
 
-    const targetDate = date ? new Date(date) : new Date();
-    const start = new Date(targetDate);
-    start.setHours(0, 0, 0, 0);
-    const end = new Date(targetDate);
-    end.setHours(23, 59, 59, 999);
+    const matchFilter = {
+      restaurantId: new mongoose.Types.ObjectId(restaurantId),
+      status: { $ne: 'cancelled' }
+    };
+
+    // ShiftId ga ustuvorlik
+    if (shiftId && shiftId.trim() !== '') {
+      try {
+        matchFilter.shiftId = new mongoose.Types.ObjectId(shiftId);
+      } catch (err) {
+        return res.json({
+          success: true,
+          data: {
+            date: new Date(),
+            hourlyData: Array.from({ length: 24 }, (_, hour) => ({ hour, orderCount: 0, revenue: 0 })),
+            peakHours: []
+          }
+        });
+      }
+    } else {
+      const targetDate = date ? new Date(date) : new Date();
+      const start = new Date(targetDate);
+      start.setHours(0, 0, 0, 0);
+      const end = new Date(targetDate);
+      end.setHours(23, 59, 59, 999);
+      matchFilter.createdAt = { $gte: start, $lte: end };
+    }
 
     const hourlyStats = await Order.aggregate([
       {
-        $match: {
-          restaurantId: new mongoose.Types.ObjectId(restaurantId),
-          createdAt: { $gte: start, $lte: end },
-          status: { $ne: 'cancelled' }
-        }
+        $match: matchFilter
       },
       // MUHIM: Bekor qilingan itemlarni chiqarib, aktiv summa hisoblash
       {
@@ -750,8 +830,23 @@ exports.getHourlyAnalysis = async (req, res, next) => {
       },
       {
         $addFields: {
+          // Saboy/takeaway buyurtmalari uchun xizmat haqi 0
+          isSaboy: {
+            $in: ['$orderType', ['saboy', 'takeaway']]
+          }
+        }
+      },
+      {
+        $addFields: {
+          activeServiceCharge: {
+            $cond: ['$isSaboy', 0, { $round: [{ $multiply: ['$activeFoodTotal', 0.1] }, 0] }]
+          }
+        }
+      },
+      {
+        $addFields: {
           activeGrandTotal: {
-            $add: ['$activeFoodTotal', { $round: [{ $multiply: ['$activeFoodTotal', 0.1] }, 0] }]
+            $add: ['$activeFoodTotal', '$activeServiceCharge', { $ifNull: ['$hourlyCharge', 0] }]
           }
         }
       },
