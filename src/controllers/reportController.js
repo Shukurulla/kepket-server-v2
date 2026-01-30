@@ -728,24 +728,146 @@ exports.getPaymentReport = async (req, res, next) => {
           }
         }
       },
+      // 🔑 Mixed to'lovlarni alohida cash, card, click ga bo'lish
       {
         $group: {
-          _id: '$paymentType',
-          count: { $sum: 1 },
-          total: { $sum: '$activeGrandTotal' }
+          _id: null,
+          orders: { $push: '$$ROOT' },
+          // Oddiy to'lovlar (non-mixed)
+          cashTotal: {
+            $sum: {
+              $cond: [
+                { $eq: ['$paymentType', 'cash'] },
+                '$activeGrandTotal',
+                0
+              ]
+            }
+          },
+          cardTotal: {
+            $sum: {
+              $cond: [
+                { $eq: ['$paymentType', 'card'] },
+                '$activeGrandTotal',
+                0
+              ]
+            }
+          },
+          clickTotal: {
+            $sum: {
+              $cond: [
+                { $eq: ['$paymentType', 'click'] },
+                '$activeGrandTotal',
+                0
+              ]
+            }
+          },
+          // Mixed to'lovlar - paymentSplit dan olish
+          mixedCashTotal: {
+            $sum: {
+              $cond: [
+                { $eq: ['$paymentType', 'mixed'] },
+                { $ifNull: ['$paymentSplit.cash', 0] },
+                0
+              ]
+            }
+          },
+          mixedCardTotal: {
+            $sum: {
+              $cond: [
+                { $eq: ['$paymentType', 'mixed'] },
+                { $ifNull: ['$paymentSplit.card', 0] },
+                0
+              ]
+            }
+          },
+          mixedClickTotal: {
+            $sum: {
+              $cond: [
+                { $eq: ['$paymentType', 'mixed'] },
+                { $ifNull: ['$paymentSplit.click', 0] },
+                0
+              ]
+            }
+          },
+          // Hisoblagichlar
+          cashCount: {
+            $sum: { $cond: [{ $eq: ['$paymentType', 'cash'] }, 1, 0] }
+          },
+          cardCount: {
+            $sum: { $cond: [{ $eq: ['$paymentType', 'card'] }, 1, 0] }
+          },
+          clickCount: {
+            $sum: { $cond: [{ $eq: ['$paymentType', 'click'] }, 1, 0] }
+          },
+          mixedCount: {
+            $sum: { $cond: [{ $eq: ['$paymentType', 'mixed'] }, 1, 0] }
+          }
         }
       },
-      { $sort: { total: -1 } }
+      // Jami summalarni hisoblash
+      {
+        $project: {
+          cashTotal: { $add: ['$cashTotal', '$mixedCashTotal'] },
+          cardTotal: { $add: ['$cardTotal', '$mixedCardTotal'] },
+          clickTotal: { $add: ['$clickTotal', '$mixedClickTotal'] },
+          cashCount: '$cashCount',
+          cardCount: '$cardCount',
+          clickCount: '$clickCount',
+          mixedCount: '$mixedCount'
+        }
+      }
     ]);
 
-    const totalRevenue = paymentStats.reduce((sum, p) => sum + p.total, 0);
+    // Natijalarni formatlash
+    const stats = paymentStats[0] || {
+      cashTotal: 0, cardTotal: 0, clickTotal: 0,
+      cashCount: 0, cardCount: 0, clickCount: 0, mixedCount: 0
+    };
 
-    const paymentBreakdown = paymentStats.map(p => ({
-      method: p._id || 'unknown',
-      count: p.count,
-      total: p.total,
-      percentage: totalRevenue > 0 ? Math.round((p.total / totalRevenue) * 100) : 0
-    }));
+    const totalRevenue = stats.cashTotal + stats.cardTotal + stats.clickTotal;
+
+    // PaymentBreakdown formatini yaratish
+    const paymentBreakdown = [];
+
+    if (stats.cashTotal > 0 || stats.cashCount > 0) {
+      paymentBreakdown.push({
+        method: 'cash',
+        count: stats.cashCount,
+        total: stats.cashTotal,
+        percentage: totalRevenue > 0 ? Math.round((stats.cashTotal / totalRevenue) * 100) : 0
+      });
+    }
+
+    if (stats.cardTotal > 0 || stats.cardCount > 0) {
+      paymentBreakdown.push({
+        method: 'card',
+        count: stats.cardCount,
+        total: stats.cardTotal,
+        percentage: totalRevenue > 0 ? Math.round((stats.cardTotal / totalRevenue) * 100) : 0
+      });
+    }
+
+    if (stats.clickTotal > 0 || stats.clickCount > 0) {
+      paymentBreakdown.push({
+        method: 'click',
+        count: stats.clickCount,
+        total: stats.clickTotal,
+        percentage: totalRevenue > 0 ? Math.round((stats.clickTotal / totalRevenue) * 100) : 0
+      });
+    }
+
+    // Mixed to'lovlar sonini ham ko'rsatish (agar kerak bo'lsa)
+    if (stats.mixedCount > 0) {
+      paymentBreakdown.push({
+        method: 'mixed',
+        count: stats.mixedCount,
+        total: 0, // Total allaqachon cash/card/click ga bo'lingan
+        percentage: 0
+      });
+    }
+
+    // Sort by total descending
+    paymentBreakdown.sort((a, b) => b.total - a.total);
 
     res.json({
       success: true,
