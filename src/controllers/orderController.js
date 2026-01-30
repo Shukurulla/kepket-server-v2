@@ -426,11 +426,13 @@ const createOrder = asyncHandler(async (req, res) => {
     let tableHourlyChargeAmount = 0;
     if (tableId) {
       const tableForHourly = await Table.findById(tableId);
+      console.log(`[createOrder] Table for hourly: tableId=${tableId}, found=${!!tableForHourly}, hasHourlyCharge=${tableForHourly?.hasHourlyCharge}, hourlyChargeAmount=${tableForHourly?.hourlyChargeAmount}`);
       if (tableForHourly) {
         tableHasHourlyCharge = tableForHourly.hasHourlyCharge || false;
         tableHourlyChargeAmount = tableForHourly.hourlyChargeAmount || 0;
       }
     }
+    console.log(`[createOrder] Will save order with: hasHourlyCharge=${tableHasHourlyCharge}, hourlyChargeAmount=${tableHourlyChargeAmount}`);
 
     order = new Order({
       restaurantId,
@@ -1205,6 +1207,8 @@ const processPayment = asyncHandler(async (req, res) => {
   const { restaurantId, id: userId } = req.user;
   const { paymentType, paymentSplit, comment } = req.body;
 
+  console.log(`[Controller processPayment] START - orderId=${id}, paymentType=${paymentType}`);
+
   if (!paymentType) {
     throw new AppError('To\'lov turi kiritilishi shart', 400, 'VALIDATION_ERROR');
   }
@@ -1214,11 +1218,15 @@ const processPayment = asyncHandler(async (req, res) => {
     throw new AppError('Order topilmadi', 404, 'NOT_FOUND');
   }
 
+  console.log(`[Controller processPayment] Order found - tableId=${order.tableId}, hasHourlyCharge=${order.hasHourlyCharge}, hourlyChargeAmount=${order.hourlyChargeAmount}`);
+
   if (order.isPaid) {
     throw new AppError('Order allaqachon to\'langan', 400, 'ALREADY_PAID');
   }
 
   await order.processPayment(paymentType, userId, paymentSplit, comment);
+
+  console.log(`[Controller processPayment] AFTER payment - hourlyCharge=${order.hourlyCharge}, grandTotal=${order.grandTotal}`);
 
   // Free the table
   if (order.tableId) {

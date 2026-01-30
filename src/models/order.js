@@ -566,23 +566,33 @@ orderSchema.methods.updateItemQuantity = function(itemId, quantity) {
 
 // Method: Process payment
 orderSchema.methods.processPayment = async function(paymentType, paidById, paymentSplit = null, comment = null) {
+  console.log(`[processPayment] START - orderId=${this._id}, tableId=${this.tableId}`);
+  console.log(`[processPayment] Order fields: hasHourlyCharge=${this.hasHourlyCharge}, hourlyChargeAmount=${this.hourlyChargeAmount}, hourlyCharge=${this.hourlyCharge}`);
+
   // Bandlik haqini hisoblash
   // Agar orderda hourly charge ma'lumotlari yo'q bo'lsa, table dan olish
   let hasHourly = this.hasHourlyCharge;
   let hourlyAmount = this.hourlyChargeAmount;
 
+  console.log(`[processPayment] Initial: hasHourly=${hasHourly}, hourlyAmount=${hourlyAmount}`);
+
   // Agar orderda ma'lumot yo'q bo'lsa, table dan olish (eski orderlar uchun)
   if (!hasHourly && this.tableId) {
+    console.log(`[processPayment] No hourly in order, fetching from table: ${this.tableId}`);
     const Table = require('./table');
     const table = await Table.findById(this.tableId);
+    console.log(`[processPayment] Table found:`, table ? { hasHourlyCharge: table.hasHourlyCharge, hourlyChargeAmount: table.hourlyChargeAmount } : 'null');
     if (table && table.hasHourlyCharge && table.hourlyChargeAmount > 0) {
       hasHourly = true;
       hourlyAmount = table.hourlyChargeAmount;
       // Orderga ham saqlash
       this.hasHourlyCharge = true;
       this.hourlyChargeAmount = hourlyAmount;
+      console.log(`[processPayment] Set from table: hasHourly=${hasHourly}, hourlyAmount=${hourlyAmount}`);
     }
   }
+
+  console.log(`[processPayment] After table check: hasHourly=${hasHourly}, hourlyAmount=${hourlyAmount}`);
 
   // Bandlik haqini hisoblash (agar stol soatlik to'lovga ega bo'lsa)
   if (hasHourly && hourlyAmount > 0) {
@@ -602,7 +612,11 @@ orderSchema.methods.processPayment = async function(paymentType, paidById, payme
     this.grandTotal = this.subtotal + this.serviceCharge + this.surcharge + hourlyCharge - this.discount;
 
     console.log(`[Payment] Order ${this._id}: hourlyCharge=${hourlyCharge}, hours=${hours}, grandTotal=${this.grandTotal}`);
+  } else {
+    console.log(`[processPayment] No hourly charge applied: hasHourly=${hasHourly}, hourlyAmount=${hourlyAmount}`);
   }
+
+  console.log(`[processPayment] FINAL VALUES: subtotal=${this.subtotal}, serviceCharge=${this.serviceCharge}, hourlyCharge=${this.hourlyCharge}, grandTotal=${this.grandTotal}`);
 
   this.isPaid = true;
   this.status = 'paid';
