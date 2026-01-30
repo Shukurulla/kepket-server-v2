@@ -566,8 +566,26 @@ orderSchema.methods.updateItemQuantity = function(itemId, quantity) {
 
 // Method: Process payment
 orderSchema.methods.processPayment = async function(paymentType, paidById, paymentSplit = null, comment = null) {
+  // Bandlik haqini hisoblash
+  // Agar orderda hourly charge ma'lumotlari yo'q bo'lsa, table dan olish
+  let hasHourly = this.hasHourlyCharge;
+  let hourlyAmount = this.hourlyChargeAmount;
+
+  // Agar orderda ma'lumot yo'q bo'lsa, table dan olish (eski orderlar uchun)
+  if (!hasHourly && this.tableId) {
+    const Table = require('./table');
+    const table = await Table.findById(this.tableId);
+    if (table && table.hasHourlyCharge && table.hourlyChargeAmount > 0) {
+      hasHourly = true;
+      hourlyAmount = table.hourlyChargeAmount;
+      // Orderga ham saqlash
+      this.hasHourlyCharge = true;
+      this.hourlyChargeAmount = hourlyAmount;
+    }
+  }
+
   // Bandlik haqini hisoblash (agar stol soatlik to'lovga ega bo'lsa)
-  if (this.hasHourlyCharge && this.hourlyChargeAmount > 0) {
+  if (hasHourly && hourlyAmount > 0) {
     const createdAt = new Date(this.createdAt);
     const now = new Date();
     const diffMs = now.getTime() - createdAt.getTime();
@@ -575,13 +593,15 @@ orderSchema.methods.processPayment = async function(paymentType, paidById, payme
 
     // Minimal 1 soat hisoblanadi
     const hours = Math.max(1, Math.ceil(diffHours));
-    const hourlyCharge = hours * this.hourlyChargeAmount;
+    const hourlyCharge = hours * hourlyAmount;
 
     this.hourlyChargeHours = hours;
     this.hourlyCharge = hourlyCharge;
 
     // Grand total ni qayta hisoblash (bandlik bilan)
     this.grandTotal = this.subtotal + this.serviceCharge + this.surcharge + hourlyCharge - this.discount;
+
+    console.log(`[Payment] Order ${this._id}: hourlyCharge=${hourlyCharge}, hours=${hours}, grandTotal=${this.grandTotal}`);
   }
 
   this.isPaid = true;
