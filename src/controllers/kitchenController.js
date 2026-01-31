@@ -801,8 +801,8 @@ exports.getPendingItems = async (req, res, next) => {
     const pendingItems = [];
     orders.forEach(order => {
       (order.items || []).forEach(item => {
-        // printerStatus = 'pending' yoki undefined
-        const isPending = !item.printerStatus || item.printerStatus === 'pending';
+        // printerStatus = 'pending', 'queued' yoki undefined - print qilinmagan itemlar
+        const needsPrint = !item.printerStatus || item.printerStatus === 'pending' || item.printerStatus === 'queued';
         const isNotCompleted = !['ready', 'served', 'cancelled'].includes(item.status);
         const isNotDeleted = !item.isDeleted;
 
@@ -813,7 +813,7 @@ exports.getPendingItems = async (req, res, next) => {
 
         console.log(`   - Item ${item.foodName}: printerStatus=${item.printerStatus}, categoryId=${itemCategoryId}, matches=${matchesCategory}`);
 
-        if (isPending && isNotCompleted && isNotDeleted && matchesCategory) {
+        if (needsPrint && isNotCompleted && isNotDeleted && matchesCategory) {
           const waiterName = order.waiterId
             ? `${order.waiterId.firstName || ''} ${order.waiterId.lastName || ''}`.trim()
             : (order.waiterName || '');
