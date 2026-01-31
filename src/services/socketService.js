@@ -357,7 +357,7 @@ class SocketService {
         items: data.selectFoods.map(item => ({
           foodId: item._id || item.foodId,
           foodName: item.foodName || item.name,
-          categoryId: item.category,
+          categoryId: item.category || item.categoryId,
           quantity: item.quantity || 1,
           price: item.price
         })),
@@ -446,7 +446,7 @@ class SocketService {
           order: order,
           allOrders: kitchenOrders,
           isNewOrder: true,
-          newItems: order.items.map((i, idx) => ({ ...i.toObject(), kitchenStatus: i.status, originalIndex: idx }))
+          newItems: order.items.map((i, idx) => ({ ...i.toObject(), kitchenStatus: i.status, categoryId: i.categoryId?.toString() || null, originalIndex: idx }))
         });
 
         // Har bir cook uchun filter qilingan newItems va allOrders
@@ -1145,6 +1145,7 @@ class SocketService {
             .map(({ item, originalIndex }) => ({
               ...(item.toObject ? item.toObject() : item),
               kitchenStatus: item.status || 'pending',
+              categoryId: item.categoryId?.toString() || item.foodId?.categoryId?.toString() || null,
               originalIndex
             }));
 
@@ -1164,6 +1165,7 @@ class SocketService {
           filteredNewItems = order.items.map((item, idx) => ({
             ...(item.toObject ? item.toObject() : item),
             kitchenStatus: item.status || 'pending',
+            categoryId: item.categoryId?.toString() || item.foodId?.categoryId?.toString() || null,
             originalIndex: idx
           }));
           filteredAllOrders = allKitchenOrders;

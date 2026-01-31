@@ -1383,7 +1383,7 @@ const approveOrder = asyncHandler(async (req, res) => {
         order: order,
         allOrders: kitchenOrders,
         isNewOrder: true,
-        newItems: order.items.map((i, idx) => ({ ...i.toObject(), kitchenStatus: i.status, originalIndex: idx }))
+        newItems: order.items.map((i, idx) => ({ ...i.toObject(), kitchenStatus: i.status, categoryId: i.categoryId?.toString() || i.foodId?.categoryId?.toString() || null, originalIndex: idx }))
       });
       // Har bir cook uchun filter qilingan
       await socketService.emitFilteredNewKitchenOrder(restaurantId.toString(), order, kitchenOrders);
