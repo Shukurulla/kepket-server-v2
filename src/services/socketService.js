@@ -1195,6 +1195,7 @@ class SocketService {
         newItems: order.items.map((item, idx) => ({
           ...(item.toObject ? item.toObject() : item),
           kitchenStatus: item.status || 'pending',
+          categoryId: item.categoryId?.toString() || item.foodId?.categoryId?.toString() || null,
           originalIndex: idx
         }))
       });

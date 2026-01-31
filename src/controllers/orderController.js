@@ -1958,7 +1958,7 @@ const createSaboyOrder = asyncHandler(async (req, res) => {
       allOrders: kitchenOrders,
       isNewOrder: true,
       isSaboy: true,
-      newItems: orderItems.map((i, idx) => ({ ...i, kitchenStatus: 'pending', originalIndex: idx }))
+      newItems: orderItems.map((i, idx) => ({ ...i, kitchenStatus: 'pending', categoryId: i.categoryId?.toString() || null, originalIndex: idx }))
     });
     // Har bir cook uchun filter qilingan
     await socketService.emitFilteredNewKitchenOrder(restaurantId.toString(), order, kitchenOrders);
