@@ -195,8 +195,19 @@ foodSchema.methods.incrementDailyOrderCount = async function(quantity = 1) {
   // Avval kunlik countni reset qilish kerakmi tekshirish
   await this.checkAndResetDailyCount();
 
-  this.dailyOrderCount += quantity;
-  this.orderCount += quantity; // Umumiy count ham
+  // Sanitize quantity - ensure it's a valid number
+  const qty = Number(quantity) || 1;
+
+  // Ensure counts are initialized (eski documentlar uchun)
+  if (typeof this.dailyOrderCount !== 'number' || isNaN(this.dailyOrderCount)) {
+    this.dailyOrderCount = 0;
+  }
+  if (typeof this.orderCount !== 'number' || isNaN(this.orderCount)) {
+    this.orderCount = 0;
+  }
+
+  this.dailyOrderCount += qty;
+  this.orderCount += qty; // Umumiy count ham
 
   let autoStopped = false;
 
