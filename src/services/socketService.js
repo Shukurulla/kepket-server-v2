@@ -346,6 +346,21 @@ class SocketService {
 
       const orderNumber = await Order.getNextOrderNumber(data.restaurantId);
 
+      // Food modelidan categoryId olish
+      const Food = require('../models/food');
+      const orderItemsWithFood = await Promise.all(data.selectFoods.map(async (item) => {
+        const foodId = item._id || item.foodId;
+        const food = await Food.findById(foodId).select('categoryId foodName name autoStopListEnabled dailyOrderLimit');
+        return {
+          foodId: foodId,
+          foodName: item.foodName || item.name || food?.foodName || food?.name,
+          categoryId: food?.categoryId || item.category || item.categoryId,
+          quantity: item.quantity || 1,
+          price: item.price,
+          _food: food // Auto stop-list uchun
+        };
+      }));
+
       const order = new Order({
         restaurantId: data.restaurantId,
         shiftId: activeShift._id, // MUHIM: ShiftId qo'shildi
@@ -354,13 +369,10 @@ class SocketService {
         tableId: data.tableId,
         tableName: data.tableName,
         tableNumber: data.tableNumber,
-        items: data.selectFoods.map(item => ({
-          foodId: item._id || item.foodId,
-          foodName: item.foodName || item.name,
-          categoryId: item.category || item.categoryId,
-          quantity: item.quantity || 1,
-          price: item.price
-        })),
+        items: orderItemsWithFood.map(item => {
+          const { _food, ...rest } = item;
+          return rest;
+        }),
         waiterId: data.waiterId,
         waiterName: data.waiterName,
         waiterApproved: true, // Waiter-created orders are auto-approved
@@ -372,13 +384,10 @@ class SocketService {
       await order.save();
 
       // Increment daily order count for each food (auto stop-list)
-      const Food = require('../models/food');
-      for (const item of order.items) {
-        if (item.foodId) {
-          const food = await Food.findById(item.foodId);
-          if (food && food.autoStopListEnabled && food.dailyOrderLimit > 0) {
-            await food.incrementDailyOrderCount(item.quantity || 1);
-          }
+      for (const item of orderItemsWithFood) {
+        const food = item._food;
+        if (food && food.autoStopListEnabled && food.dailyOrderLimit > 0) {
+          await food.incrementDailyOrderCount(item.quantity || 1);
         }
       }
 
@@ -417,7 +426,7 @@ class SocketService {
               ...i.toObject(),
               kitchenStatus: i.status,
               name: i.foodId?.name || i.foodName,
-              categoryId: i.foodId?.categoryId?.toString() || null,
+              categoryId: i.categoryId?.toString() || i.category?.toString() || i.foodId?.categoryId?.toString() || null,
               originalIndex: originalIdx
             }));
           return {
@@ -446,7 +455,7 @@ class SocketService {
           order: order,
           allOrders: kitchenOrders,
           isNewOrder: true,
-          newItems: order.items.map((i, idx) => ({ ...i.toObject(), kitchenStatus: i.status, categoryId: i.categoryId?.toString() || null, originalIndex: idx }))
+          newItems: order.items.map((i, idx) => ({ ...i.toObject(), kitchenStatus: i.status, categoryId: i.categoryId?.toString() || i.category?.toString() || i.foodId?.categoryId?.toString() || null, originalIndex: idx }))
         });
 
         // Har bir cook uchun filter qilingan newItems va allOrders
@@ -533,7 +542,7 @@ class SocketService {
                 ...i.toObject(),
                 kitchenStatus: i.status,
                 name: i.foodId?.name || i.foodName,
-                categoryId: i.foodId?.categoryId?.toString() || null,
+                categoryId: i.categoryId?.toString() || i.category?.toString() || i.foodId?.categoryId?.toString() || null,
                 originalIndex: originalIdx
               }));
             return {
@@ -666,31 +675,38 @@ class SocketService {
       }
 
       // Add new items to the order - CRITICAL FIX!
-      const itemsToAdd = newItems.map(item => ({
-        foodId: item.foodId || item._id,
-        foodName: item.foodName || item.name,
-        categoryId: item.category || item.categoryId,
-        quantity: item.quantity || 1,
-        price: item.price || 0,
-        status: 'pending',
-        addedAt: new Date()
+      // Food modelidan categoryId olish
+      const Food = require('../models/food');
+      const itemsToAdd = await Promise.all(newItems.map(async (item) => {
+        const foodId = item.foodId || item._id;
+        const food = await Food.findById(foodId).select('categoryId foodName name autoStopListEnabled dailyOrderLimit');
+        return {
+          foodId: foodId,
+          foodName: item.foodName || item.name || food?.foodName || food?.name,
+          categoryId: food?.categoryId || item.category || item.categoryId,
+          quantity: item.quantity || 1,
+          price: item.price || 0,
+          status: 'pending',
+          addedAt: new Date(),
+          _food: food // Auto stop-list uchun saqlab qo'yamiz
+        };
       }));
 
       // Push new items to order
-      order.items.push(...itemsToAdd);
+      order.items.push(...itemsToAdd.map(item => {
+        const { _food, ...rest } = item;
+        return rest;
+      }));
 
       // Save the order
       await order.save();
       console.log('add_order_items: Items saved to database, new items count:', itemsToAdd.length);
 
       // Increment daily order count for each food (auto stop-list)
-      const Food = require('../models/food');
       for (const item of itemsToAdd) {
-        if (item.foodId) {
-          const food = await Food.findById(item.foodId);
-          if (food && food.autoStopListEnabled && food.dailyOrderLimit > 0) {
-            await food.incrementDailyOrderCount(item.quantity || 1);
-          }
+        const food = item._food;
+        if (food && food.autoStopListEnabled && food.dailyOrderLimit > 0) {
+          await food.incrementDailyOrderCount(item.quantity || 1);
         }
       }
 
@@ -746,7 +762,7 @@ class SocketService {
               ...i.toObject(),
               kitchenStatus: i.status,
               name: i.foodId?.name || i.foodName,
-              categoryId: i.foodId?.categoryId?.toString() || null,
+              categoryId: i.categoryId?.toString() || i.category?.toString() || i.foodId?.categoryId?.toString() || null,
               originalIndex: originalIdx
             }));
           return {
@@ -1075,7 +1091,7 @@ class SocketService {
           // Filter orders - faqat oshpazga biriktirilgan kategoriyalar
           filteredOrders = kitchenOrders.map(order => {
             const filteredItems = order.items.filter(item => {
-              const itemCategoryId = item.foodId?.categoryId?.toString() || item.categoryId?.toString();
+              const itemCategoryId = item.categoryId?.toString() || item.category?.toString() || item.foodId?.categoryId?.toString();
               const matches = itemCategoryId && cookCategories.some(catId => catId.toString() === itemCategoryId);
               return matches;
             });
@@ -1138,21 +1154,21 @@ class SocketService {
           filteredNewItems = order.items
             .map((item, idx) => ({ item, originalIndex: idx }))
             .filter(({ item }) => {
-              const itemCategoryId = item.categoryId?.toString() || item.foodId?.categoryId?.toString();
+              const itemCategoryId = item.categoryId?.toString() || item.category?.toString() || item.foodId?.categoryId?.toString();
               if (!itemCategoryId) return false;
               return cookCategories.some(catId => catId.toString() === itemCategoryId);
             })
             .map(({ item, originalIndex }) => ({
               ...(item.toObject ? item.toObject() : item),
               kitchenStatus: item.status || 'pending',
-              categoryId: item.categoryId?.toString() || item.foodId?.categoryId?.toString() || null,
+              categoryId: item.categoryId?.toString() || item.category?.toString() || item.foodId?.categoryId?.toString() || null,
               originalIndex
             }));
 
           // Filter allOrders
           filteredAllOrders = allKitchenOrders.map(o => {
             const filteredItems = o.items.filter(item => {
-              const itemCategoryId = item.foodId?.categoryId?.toString() || item.categoryId?.toString();
+              const itemCategoryId = item.categoryId?.toString() || item.category?.toString() || item.foodId?.categoryId?.toString();
               if (!itemCategoryId) return false;
               return cookCategories.some(catId => catId.toString() === itemCategoryId);
             });
@@ -1165,7 +1181,7 @@ class SocketService {
           filteredNewItems = order.items.map((item, idx) => ({
             ...(item.toObject ? item.toObject() : item),
             kitchenStatus: item.status || 'pending',
-            categoryId: item.categoryId?.toString() || item.foodId?.categoryId?.toString() || null,
+            categoryId: item.categoryId?.toString() || item.category?.toString() || item.foodId?.categoryId?.toString() || null,
             originalIndex: idx
           }));
           filteredAllOrders = allKitchenOrders;
@@ -1195,7 +1211,7 @@ class SocketService {
         newItems: order.items.map((item, idx) => ({
           ...(item.toObject ? item.toObject() : item),
           kitchenStatus: item.status || 'pending',
-          categoryId: item.categoryId?.toString() || item.foodId?.categoryId?.toString() || null,
+          categoryId: item.categoryId?.toString() || item.category?.toString() || item.foodId?.categoryId?.toString() || null,
           originalIndex: idx
         }))
       });
@@ -1231,7 +1247,7 @@ class SocketService {
         if (hasCategoryFilter) {
           // Filter newItems by cook's categories
           filteredNewItems = newItems.filter(item => {
-            const itemCategoryId = item.categoryId?.toString() || item.foodId?.categoryId?.toString();
+            const itemCategoryId = item.categoryId?.toString() || item.category?.toString() || item.foodId?.categoryId?.toString();
             if (!itemCategoryId) return false;
             return cookCategories.some(catId => catId.toString() === itemCategoryId);
           });
@@ -1239,7 +1255,7 @@ class SocketService {
           // Filter allOrders
           filteredAllOrders = allKitchenOrders.map(o => {
             const filteredItems = o.items.filter(item => {
-              const itemCategoryId = item.foodId?.categoryId?.toString() || item.categoryId?.toString();
+              const itemCategoryId = item.categoryId?.toString() || item.category?.toString() || item.foodId?.categoryId?.toString();
               if (!itemCategoryId) return false;
               return cookCategories.some(catId => catId.toString() === itemCategoryId);
             });
