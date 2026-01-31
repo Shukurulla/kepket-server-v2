@@ -353,7 +353,8 @@ const createOrder = asyncHandler(async (req, res) => {
       quantity: item.quantity || 1,
       price: food ? food.price : item.price,
       addedBy: userId,
-      addedByName: fullName
+      addedByName: fullName,
+      printerStatus: 'pending' // 🖨️ Yangi item - print qilinmagan
     };
   }));
 
@@ -773,7 +774,8 @@ const addItems = asyncHandler(async (req, res) => {
       quantity: item.quantity || 1,
       price: food ? food.price : item.price,
       addedBy: userId,
-      addedByName: fullName
+      addedByName: fullName,
+      printerStatus: 'pending' // 🖨️ Yangi item - print qilinmagan
     };
     order.addItem(newItem);
     orderItems.push(newItem);
