@@ -28,9 +28,14 @@ exports.getOrders = async (req, res, next) => {
     }
 
     // Oshpazning assignedCategories ni olish
-    const cook = await Staff.findById(cookId).select('assignedCategories role');
+    const cook = await Staff.findById(cookId).select('assignedCategories role firstName lastName');
     const cookCategories = cook?.assignedCategories || [];
     const hasCategoryFilter = cook?.role === 'cook' && cookCategories.length > 0;
+
+    console.log(`🍳 [API] getOrders called by: ${cook?.firstName} ${cook?.lastName} (${cookId})`);
+    console.log(`   - role: ${cook?.role}`);
+    console.log(`   - assignedCategories: [${cookCategories.map(c => c.toString()).join(', ')}]`);
+    console.log(`   - hasCategoryFilter: ${hasCategoryFilter}`);
 
     // Find orders with items that need kitchen attention
     // status = 'pending', 'preparing', 'ready', 'served' yoki undefined (hammasi)
@@ -132,6 +137,9 @@ exports.getOrders = async (req, res, next) => {
         saboyNumber: order.saboyNumber
       };
     }).filter(order => order.items.length > 0);
+
+    const totalItems = kitchenOrders.reduce((sum, o) => sum + o.items.length, 0);
+    console.log(`🍳 [API] Returning ${kitchenOrders.length} orders with ${totalItems} items`);
 
     res.json({
       success: true,

@@ -1058,11 +1058,17 @@ class SocketService {
           { status: { $exists: false } },
           { status: null }
         ]
-      }).select('_id assignedCategories');
+      }).select('_id assignedCategories firstName lastName');
+
+      console.log(`🍳 [FILTER] emitFilteredKitchenOrders: ${cooks.length} online cooks, ${kitchenOrders.length} orders`);
 
       for (const cook of cooks) {
         const cookCategories = cook.assignedCategories || [];
         const hasCategoryFilter = cookCategories.length > 0;
+
+        console.log(`🍳 [FILTER] Cook: ${cook.firstName} ${cook.lastName} (${cook._id})`);
+        console.log(`   - assignedCategories: [${cookCategories.map(c => c.toString()).join(', ')}]`);
+        console.log(`   - hasCategoryFilter: ${hasCategoryFilter}`);
 
         let filteredOrders;
         if (hasCategoryFilter) {
@@ -1070,14 +1076,18 @@ class SocketService {
           filteredOrders = kitchenOrders.map(order => {
             const filteredItems = order.items.filter(item => {
               const itemCategoryId = item.foodId?.categoryId?.toString() || item.categoryId?.toString();
-              if (!itemCategoryId) return false;
-              return cookCategories.some(catId => catId.toString() === itemCategoryId);
+              const matches = itemCategoryId && cookCategories.some(catId => catId.toString() === itemCategoryId);
+              return matches;
             });
             return { ...order, items: filteredItems };
           }).filter(order => order.items.length > 0);
+
+          const totalItems = filteredOrders.reduce((sum, o) => sum + o.items.length, 0);
+          console.log(`   - Filtered: ${filteredOrders.length} orders, ${totalItems} items`);
         } else {
           // Agar kategoriya biriktirilmagan bo'lsa - barcha orderlar
           filteredOrders = kitchenOrders;
+          console.log(`   - No filter: sending all ${kitchenOrders.length} orders`);
         }
 
         // Faqat shu oshpazga yuborish
@@ -1108,11 +1118,16 @@ class SocketService {
           { status: { $exists: false } },
           { status: null }
         ]
-      }).select('_id assignedCategories');
+      }).select('_id assignedCategories firstName lastName');
+
+      console.log(`🍳 [NEW_ORDER] emitFilteredNewKitchenOrder: ${cooks.length} online cooks, order #${order.orderNumber}`);
 
       for (const cook of cooks) {
         const cookCategories = cook.assignedCategories || [];
         const hasCategoryFilter = cookCategories.length > 0;
+
+        console.log(`🍳 [NEW_ORDER] Cook: ${cook.firstName} ${cook.lastName}`);
+        console.log(`   - assignedCategories: [${cookCategories.map(c => c.toString()).join(', ')}]`);
 
         let filteredNewItems;
         let filteredAllOrders;
@@ -1142,6 +1157,8 @@ class SocketService {
             });
             return { ...o, items: filteredItems };
           }).filter(o => o.items.length > 0);
+
+          console.log(`   - Filtered: ${filteredNewItems.length} new items for this cook`);
         } else {
           // Agar kategoriya biriktirilmagan bo'lsa - barcha itemlar
           filteredNewItems = order.items.map((item, idx) => ({
@@ -1150,6 +1167,7 @@ class SocketService {
             originalIndex: idx
           }));
           filteredAllOrders = allKitchenOrders;
+          console.log(`   - No filter: sending all ${filteredNewItems.length} items`);
         }
 
         // Faqat shu oshpazga tegishli itemlar bo'lsa yuborish
@@ -1160,6 +1178,9 @@ class SocketService {
             isNewOrder: true,
             newItems: filteredNewItems
           });
+          console.log(`   - ✅ Sent new_kitchen_order to cook ${cook._id}`);
+        } else {
+          console.log(`   - ⏭️ Skipped: no items for this cook`);
         }
       }
     } catch (err) {
