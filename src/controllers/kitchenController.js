@@ -785,33 +785,49 @@ exports.getPendingItems = async (req, res, next) => {
       restaurantId: req.user.restaurantId,
       shiftId: activeShift._id,
       status: { $nin: ['cancelled', 'served'] },
-      'items.printerStatus': 'pending',
       'items.status': { $nin: ['ready', 'served', 'cancelled'] }
     };
 
     const Order = require('../models/order');
-    const orders = await Order.find(filter);
+    // 🖨️ foodId ni populate qilish - categoryId olish uchun
+    const orders = await Order.find(filter)
+      .populate('items.foodId', 'categoryId')
+      .populate('tableId', 'number title')
+      .populate('waiterId', 'firstName lastName');
+
+    console.log(`📥 Found ${orders.length} orders to check`);
 
     // Flatten items with order info
     const pendingItems = [];
     orders.forEach(order => {
       (order.items || []).forEach(item => {
-        // printerStatus = 'pending' va status != ready/served/cancelled
-        const isPending = item.printerStatus === 'pending' || !item.printerStatus;
+        // printerStatus = 'pending' yoki undefined
+        const isPending = !item.printerStatus || item.printerStatus === 'pending';
         const isNotCompleted = !['ready', 'served', 'cancelled'].includes(item.status);
-        const matchesCategory = categories.length === 0 ||
-          categories.includes(String(item.categoryId));
+        const isNotDeleted = !item.isDeleted;
 
-        if (isPending && isNotCompleted && matchesCategory) {
+        // categoryId - item.categoryId yoki foodId.categoryId dan olish
+        const itemCategoryId = item.categoryId?.toString() || item.foodId?.categoryId?.toString();
+        const matchesCategory = categories.length === 0 ||
+          (itemCategoryId && categories.includes(itemCategoryId));
+
+        console.log(`   - Item ${item.foodName}: printerStatus=${item.printerStatus}, categoryId=${itemCategoryId}, matches=${matchesCategory}`);
+
+        if (isPending && isNotCompleted && isNotDeleted && matchesCategory) {
+          const waiterName = order.waiterId
+            ? `${order.waiterId.firstName || ''} ${order.waiterId.lastName || ''}`.trim()
+            : (order.waiterName || '');
+          const tableName = order.tableId?.title || order.tableName || `Stol ${order.tableId?.number || order.tableNumber || ''}`;
+
           pendingItems.push({
             _id: item._id,
             orderId: order._id,
             orderNumber: order.orderNumber,
-            tableName: order.tableName || `Stol ${order.tableNumber}`,
-            waiterName: order.waiterName || '',
+            tableName,
+            waiterName,
             foodName: item.foodName,
             quantity: item.quantity,
-            categoryId: item.categoryId,
+            categoryId: itemCategoryId,
             createdAt: item.addedAt || order.createdAt
           });
         }

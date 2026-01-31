@@ -353,8 +353,7 @@ const createOrder = asyncHandler(async (req, res) => {
       quantity: item.quantity || 1,
       price: food ? food.price : item.price,
       addedBy: userId,
-      addedByName: fullName,
-      printerStatus: 'pending' // 🖨️ Yangi item - print qilinmagan
+      addedByName: fullName
     };
   }));
 
@@ -774,8 +773,7 @@ const addItems = asyncHandler(async (req, res) => {
       quantity: item.quantity || 1,
       price: food ? food.price : item.price,
       addedBy: userId,
-      addedByName: fullName,
-      printerStatus: 'pending' // 🖨️ Yangi item - print qilinmagan
+      addedByName: fullName
     };
     order.addItem(newItem);
     orderItems.push(newItem);
@@ -1582,9 +1580,7 @@ const cancelItem = asyncHandler(async (req, res) => {
         quantity: item.quantity,
         price: item.price,
         total: item.price * item.quantity,
-        reason: reason,
-        categoryId: item.categoryId ? item.categoryId.toString() : null,
-        categoryName: item.categoryName || null
+        reason: reason
       }
     });
   }
@@ -1603,9 +1599,7 @@ const cancelItem = asyncHandler(async (req, res) => {
         total: item.price * item.quantity,
         cancelledBy: fullName,
         cancelledAt: item.cancelledAt,
-        reason: reason,
-        categoryId: item.categoryId ? item.categoryId.toString() : null,
-        categoryName: item.categoryName || null
+        reason: reason
       }
     }
   });
