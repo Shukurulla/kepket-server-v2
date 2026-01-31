@@ -113,7 +113,18 @@ const orderItemSchema = new mongoose.Schema({
     type: String,
     enum: ['cash', 'card', 'click', null],
     default: null
-  }
+  },
+
+  // 🖨️ Printer Status Tracking (cook offline bo'lganda ham print qilish uchun)
+  printerStatus: {
+    type: String,
+    enum: ['pending', 'queued', 'printed'],
+    default: 'pending'
+  },
+  // Printer queue ga qo'shilgan vaqt (stuck items ni aniqlash uchun)
+  queuedAt: Date,
+  // Print bo'lgan vaqt
+  printedAt: Date
 }, { _id: true });
 
 // Item methods

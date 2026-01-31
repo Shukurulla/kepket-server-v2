@@ -39,4 +39,17 @@ router.patch(
 // Call waiter
 router.post('/call-waiter', requireRole('cook', 'admin'), kitchenController.callWaiter);
 
+// ============================================================
+// 🖨️ PRINTER PENDING SYSTEM - Cook offline bo'lganda ham print
+// ============================================================
+
+// Get pending items (cook online bo'lganda)
+router.get('/pending-items', requireRole('cook', 'admin'), kitchenController.getPendingItems);
+
+// Bulk update printer status (bir nechta item)
+router.post('/bulk-update-printer-status', requireRole('cook', 'admin'), kitchenController.bulkUpdatePrinterStatus);
+
+// Update single item printer status
+router.patch('/items/:itemId/printer-status', requireRole('cook', 'admin'), kitchenController.updateItemPrinterStatus);
+
 module.exports = router;

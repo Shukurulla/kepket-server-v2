@@ -751,3 +751,215 @@ exports.callWaiter = async (req, res, next) => {
     next(error);
   }
 };
+
+// ============================================================
+// 🖨️ PRINTER PENDING SYSTEM - Cook offline bo'lganda ham print
+// ============================================================
+
+/**
+ * GET /api/kitchen/pending-items
+ * Cook online bo'lganda - o'ziga tegishli pending itemlarni olish
+ */
+exports.getPendingItems = async (req, res, next) => {
+  try {
+    const { categoryIds } = req.query;
+    const categories = categoryIds ? categoryIds.split(',').filter(Boolean) : [];
+
+    console.log('📥 getPendingItems called');
+    console.log('   - restaurantId:', req.user.restaurantId);
+    console.log('   - categoryIds:', categories);
+
+    // Active shift ni topish
+    const Shift = require('./shiftController').Shift || require('../models/shift');
+    const activeShift = await Shift.findOne({
+      restaurantId: req.user.restaurantId,
+      status: 'active'
+    });
+
+    if (!activeShift) {
+      return res.json({ success: true, items: [], message: 'No active shift' });
+    }
+
+    // Pending itemlarni topish
+    const filter = {
+      restaurantId: req.user.restaurantId,
+      shiftId: activeShift._id,
+      status: { $nin: ['cancelled', 'served'] },
+      'items.printerStatus': 'pending',
+      'items.status': { $nin: ['ready', 'served', 'cancelled'] }
+    };
+
+    const Order = require('../models/order');
+    const orders = await Order.find(filter);
+
+    // Flatten items with order info
+    const pendingItems = [];
+    orders.forEach(order => {
+      (order.items || []).forEach(item => {
+        // printerStatus = 'pending' va status != ready/served/cancelled
+        const isPending = item.printerStatus === 'pending' || !item.printerStatus;
+        const isNotCompleted = !['ready', 'served', 'cancelled'].includes(item.status);
+        const matchesCategory = categories.length === 0 ||
+          categories.includes(String(item.categoryId));
+
+        if (isPending && isNotCompleted && matchesCategory) {
+          pendingItems.push({
+            _id: item._id,
+            orderId: order._id,
+            orderNumber: order.orderNumber,
+            tableName: order.tableName || `Stol ${order.tableNumber}`,
+            waiterName: order.waiterName || '',
+            foodName: item.foodName,
+            quantity: item.quantity,
+            categoryId: item.categoryId,
+            createdAt: item.addedAt || order.createdAt
+          });
+        }
+      });
+    });
+
+    // Vaqt bo'yicha saralash (eski birinchi)
+    pendingItems.sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
+
+    console.log(`📥 Found ${pendingItems.length} pending items`);
+
+    res.json({ success: true, items: pendingItems });
+  } catch (error) {
+    console.error('getPendingItems error:', error);
+    next(error);
+  }
+};
+
+/**
+ * POST /api/kitchen/bulk-update-printer-status
+ * Bir nechta itemni birdan yangilash
+ */
+exports.bulkUpdatePrinterStatus = async (req, res, next) => {
+  try {
+    const { itemIds, status } = req.body;
+
+    if (!itemIds || !Array.isArray(itemIds) || itemIds.length === 0) {
+      return res.status(400).json({ success: false, error: 'itemIds required' });
+    }
+
+    if (!['pending', 'queued', 'printed'].includes(status)) {
+      return res.status(400).json({ success: false, error: 'Invalid status' });
+    }
+
+    console.log(`🖨️ bulkUpdatePrinterStatus: ${itemIds.length} items -> ${status}`);
+
+    const Order = require('../models/order');
+    const mongoose = require('mongoose');
+
+    // Update fields based on status
+    const updateFields = {
+      'items.$[elem].printerStatus': status
+    };
+
+    if (status === 'queued') {
+      updateFields['items.$[elem].queuedAt'] = new Date();
+    } else if (status === 'printed') {
+      updateFields['items.$[elem].printedAt'] = new Date();
+    }
+
+    // Atomic update with condition (optimistic locking for 'queued')
+    const objectIds = itemIds.map(id => {
+      try {
+        return new mongoose.Types.ObjectId(id);
+      } catch (e) {
+        return id;
+      }
+    });
+
+    let result;
+    if (status === 'queued') {
+      // Faqat 'pending' statusdagi itemlarni 'queued' ga o'zgartirish
+      result = await Order.updateMany(
+        {
+          'items._id': { $in: objectIds },
+          'items.printerStatus': { $in: ['pending', null, undefined] }
+        },
+        { $set: updateFields },
+        {
+          arrayFilters: [{
+            'elem._id': { $in: objectIds },
+            'elem.printerStatus': { $in: ['pending', null, undefined] }
+          }]
+        }
+      );
+    } else {
+      // 'printed' statusiga o'tish
+      result = await Order.updateMany(
+        { 'items._id': { $in: objectIds } },
+        { $set: updateFields },
+        { arrayFilters: [{ 'elem._id': { $in: objectIds } }] }
+      );
+    }
+
+    console.log(`🖨️ Updated ${result.modifiedCount} items to '${status}'`);
+
+    res.json({
+      success: true,
+      modifiedCount: result.modifiedCount,
+      message: `${result.modifiedCount} items updated to '${status}'`
+    });
+  } catch (error) {
+    console.error('bulkUpdatePrinterStatus error:', error);
+    next(error);
+  }
+};
+
+/**
+ * PATCH /api/kitchen/items/:itemId/printer-status
+ * Bitta item statusini yangilash
+ */
+exports.updateItemPrinterStatus = async (req, res, next) => {
+  try {
+    const { itemId } = req.params;
+    const { status } = req.body;
+
+    if (!['pending', 'queued', 'printed'].includes(status)) {
+      return res.status(400).json({ success: false, error: 'Invalid status' });
+    }
+
+    const Order = require('../models/order');
+    const mongoose = require('mongoose');
+
+    const updateFields = {
+      'items.$.printerStatus': status
+    };
+
+    if (status === 'queued') {
+      updateFields['items.$.queuedAt'] = new Date();
+    } else if (status === 'printed') {
+      updateFields['items.$.printedAt'] = new Date();
+    }
+
+    let objectId;
+    try {
+      objectId = new mongoose.Types.ObjectId(itemId);
+    } catch (e) {
+      objectId = itemId;
+    }
+
+    // Optimistic locking for 'queued'
+    let query = { 'items._id': objectId };
+    if (status === 'queued') {
+      query['items.printerStatus'] = { $in: ['pending', null, undefined] };
+    }
+
+    const result = await Order.updateOne(query, { $set: updateFields });
+
+    if (result.modifiedCount === 0) {
+      return res.json({
+        success: false,
+        message: 'Item not found or already claimed by another cook'
+      });
+    }
+
+    res.json({ success: true, message: `Item status updated to '${status}'` });
+  } catch (error) {
+    console.error('updateItemPrinterStatus error:', error);
+    next(error);
+  }
+};
